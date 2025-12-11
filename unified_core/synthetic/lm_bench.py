@@ -5,7 +5,7 @@ Provides training loop and evaluation for synthetic memory tasks.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 import torch
 import torch.nn as nn

@@ -101,7 +101,6 @@ class DualTierMiras(nn.Module):
         d = cfg.d_model
         d_v = cfg.d_value
         H = cfg.n_heads
-        S = cfg.mem_slots
 
         assert d % H == 0, "d_model must be divisible by n_heads"
         self.head_dim = d // H
@@ -134,14 +133,30 @@ class DualTierMiras(nn.Module):
         d_v = self.value_head_dim
 
         return MemoryState(
-            fast_keys=torch.randn(batch_size, H, S, d_h, device=device) * 0.01,
-            fast_vals=torch.randn(batch_size, H, S, d_v, device=device) * 0.01,
-            deep_keys=torch.randn(batch_size, H, S, d_h, device=device) * 0.01,
-            deep_vals=torch.randn(batch_size, H, S, d_v, device=device) * 0.01,
-            fast_ptr=torch.zeros(batch_size, H, dtype=torch.long, device=device),
-            deep_ptr=torch.zeros(batch_size, H, dtype=torch.long, device=device),
-            surprise_mean=torch.zeros(batch_size, self.cfg.d_model, device=device),
-            surprise_var=torch.ones(batch_size, self.cfg.d_model, device=device),
+            fast_keys=torch.randn(
+                batch_size, H, S, d_h, device=device
+            ) * 0.01,
+            fast_vals=torch.randn(
+                batch_size, H, S, d_v, device=device
+            ) * 0.01,
+            deep_keys=torch.randn(
+                batch_size, H, S, d_h, device=device
+            ) * 0.01,
+            deep_vals=torch.randn(
+                batch_size, H, S, d_v, device=device
+            ) * 0.01,
+            fast_ptr=torch.zeros(
+                batch_size, H, dtype=torch.long, device=device
+            ),
+            deep_ptr=torch.zeros(
+                batch_size, H, dtype=torch.long, device=device
+            ),
+            surprise_mean=torch.zeros(
+                batch_size, self.cfg.d_model, device=device
+            ),
+            surprise_var=torch.ones(
+                batch_size, self.cfg.d_model, device=device
+            ),
         )
 
     def _split_heads(self, x: torch.Tensor, head_dim: int) -> torch.Tensor:
@@ -222,7 +237,9 @@ class DualTierMiras(nn.Module):
         new_mean, new_var = self._update_surprise_stats(
             h, state.surprise_mean, state.surprise_var
         )
-        surprise = self._compute_surprise(h, state.surprise_mean, state.surprise_var)
+        surprise = self._compute_surprise(
+            h, state.surprise_mean, state.surprise_var
+        )
 
         new_state = MemoryState(
             fast_keys=state.fast_keys,

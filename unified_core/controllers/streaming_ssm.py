@@ -88,8 +88,6 @@ class StreamingSSMCell(nn.Module):
             out: [B, D] output
             new_state: Updated SSMState
         """
-        B = x.size(0)
-
         xz = self.in_proj(x)
         x_inner, z = xz.chunk(2, dim=-1)
 

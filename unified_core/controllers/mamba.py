@@ -86,7 +86,9 @@ class MambaBlock(nn.Module):
 
         new_state = MambaState(
             conv_state=x_inner[:, -self.d_conv:, :].detach(),
-            ssm_state=torch.zeros(B, self.d_inner, self.d_state, device=x.device),
+            ssm_state=torch.zeros(
+                B, self.d_inner, self.d_state, device=x.device
+            ),
         )
 
         return out, new_state
@@ -95,14 +97,14 @@ class MambaBlock(nn.Module):
         """Simplified selective scan (parallel approximation)."""
         B_dim, T, D = x.shape
         alpha = torch.sigmoid(dt.mean(dim=-1, keepdim=True))
-        
+
         outputs = []
         h = torch.zeros(B_dim, D, device=x.device)
-        
+
         for t in range(T):
             h = alpha[:, t] * h + (1 - alpha[:, t]) * x[:, t]
             outputs.append(h.unsqueeze(1))
-        
+
         return torch.cat(outputs, dim=1)
 
 
