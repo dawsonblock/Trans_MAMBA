@@ -93,6 +93,59 @@ output, new_state, aux = memory(query, write_value=value, state=state)
 - Linear O(T) time complexity
 - No attention, no KV cache
 
+## Runtime Anomaly Detection
+
+The framework includes a comprehensive anomaly detection system for monitoring training.
+
+### Enabling Anomaly Detection
+
+```bash
+# LM mode with anomaly detection
+python unified_runner.py --mode lm --task copy_memory --controller mamba \
+    --enable_anomaly_detection --verbose_anomalies
+
+# RL mode with anomaly detection and logging
+python unified_runner.py --mode rl --agent infinity --env cartpole \
+    --enable_anomaly_detection --anomaly_log anomalies.jsonl
+
+# Using custom config
+python unified_runner.py --mode lm --task copy_memory --controller mamba \
+    --enable_anomaly_detection --anomaly_config monitoring/anomaly_config_example.json
+```
+
+### Built-in Rules
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| NaN/Inf | CRITICAL | Detects NaN/Inf in tensors |
+| GradientExplosion | ERROR | Gradient norm exceeds threshold |
+| AdvantageCollapse | WARNING | PPO advantage std near zero |
+| PolicyCollapse | WARNING | Single action dominates |
+| MemorySaturation | WARNING | Memory write frequency anomaly |
+| LossSpike | WARNING | Statistical loss deviation |
+
+### Programmatic Usage
+
+```python
+from monitoring import create_detector, MonitoredTrainer
+
+detector = create_detector(verbose=True)
+trainer = MonitoredTrainer(your_trainer, detector, model)
+results = trainer.train()
+
+# Check anomaly summary
+detector.print_summary()
+```
+
+### Interpreting Anomaly Logs
+
+Anomaly logs are JSON lines with:
+- `rule_name`: Which rule triggered
+- `severity`: INFO/WARNING/ERROR/CRITICAL
+- `metric_name`: The metric that triggered
+- `message`: Human-readable description
+- `suggested_action`: Recommended fix
+
 ## Testing
 
 ```bash
@@ -103,6 +156,7 @@ python -m tests.test_memory
 python -m tests.test_controllers
 python -m tests.test_rl_agents
 python -m tests.test_synthetic
+python -m tests.test_anomaly_detector
 ```
 
 ## Configuration

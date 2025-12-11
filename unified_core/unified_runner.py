@@ -38,6 +38,17 @@ from rl import (
     make_env,
 )
 
+# Optional monitoring imports
+try:
+    from monitoring import (
+        create_detector,
+        MonitoredTrainer,
+        MonitoredPPOTrainer,
+    )
+    MONITORING_AVAILABLE = True
+except ImportError:
+    MONITORING_AVAILABLE = False
+
 
 def set_seed(seed: int):
     """Set random seeds for reproducibility."""
@@ -121,6 +132,20 @@ def run_lm_mode(args):
     )
 
     benchmark = LMBenchmark(model, bench_cfg, task_cfg)
+
+    # Wrap with monitoring if enabled
+    if args.enable_anomaly_detection and MONITORING_AVAILABLE:
+        print("\n[Anomaly Detection ENABLED]")
+        detector = create_detector(
+            config_path=args.anomaly_config,
+            enabled=True,
+            verbose=args.verbose_anomalies,
+            log_file=args.anomaly_log,
+        )
+        benchmark = MonitoredTrainer(benchmark, detector, model)
+    elif args.enable_anomaly_detection and not MONITORING_AVAILABLE:
+        print("\n[WARNING] Anomaly detection requested but not available")
+
     results = benchmark.train()
 
     if args.save_dir:
@@ -192,6 +217,19 @@ def run_rl_mode(args):
     )
 
     trainer = PPOTrainer(agent, ppo_cfg, device)
+
+    # Wrap with monitoring if enabled
+    if args.enable_anomaly_detection and MONITORING_AVAILABLE:
+        print("\n[Anomaly Detection ENABLED]")
+        detector = create_detector(
+            config_path=args.anomaly_config,
+            enabled=True,
+            verbose=args.verbose_anomalies,
+            log_file=args.anomaly_log,
+        )
+        trainer = MonitoredPPOTrainer(trainer, detector)
+    elif args.enable_anomaly_detection and not MONITORING_AVAILABLE:
+        print("\n[WARNING] Anomaly detection requested but not available")
 
     print(f"\nAgent: {args.agent}")
     print(f"Environment: {args.env}")
@@ -307,6 +345,25 @@ def main():
     rl_group.add_argument("--log_interval", type=int, default=10)
 
     parser.add_argument("--lr", type=float, default=3e-4)
+
+    # Anomaly detection arguments
+    monitor_group = parser.add_argument_group("Anomaly Detection")
+    monitor_group.add_argument(
+        "--enable_anomaly_detection", action="store_true",
+        help="Enable runtime anomaly detection"
+    )
+    monitor_group.add_argument(
+        "--anomaly_config", type=str, default=None,
+        help="Path to anomaly detection config JSON"
+    )
+    monitor_group.add_argument(
+        "--anomaly_log", type=str, default=None,
+        help="Path to anomaly log file"
+    )
+    monitor_group.add_argument(
+        "--verbose_anomalies", action="store_true",
+        help="Print anomalies when detected"
+    )
 
     args = parser.parse_args()
 
