@@ -110,7 +110,7 @@ class DualTierMiras(nn.Module):
         self.query_proj = nn.Linear(d, d)
         self.key_proj = nn.Linear(d, d)
         self.value_proj = nn.Linear(d, d_v)
-        self.out_proj = nn.Linear(d_v, d_v)
+        self.out_proj = nn.Linear(d_v, d)
 
         self.surprise_proj = nn.Linear(d, d)
         self.context_gate = nn.Linear(d, 1)
