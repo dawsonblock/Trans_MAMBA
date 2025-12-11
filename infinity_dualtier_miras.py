@@ -9,16 +9,16 @@ Dual-tier content-addressable parametric memory:
 No external dependencies except PyTorch.
 """
 
-import math
 from dataclasses import dataclass
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
-def _cosine_sim(a: torch.Tensor, b: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+def _cosine_sim(
+    a: torch.Tensor, b: torch.Tensor, eps: float = 1e-8
+) -> torch.Tensor:
     """
     a: [B, H, S, D]
     b: [B, H, S, D]
@@ -128,10 +128,6 @@ class DualTierMiras(nn.Module):
     @torch.no_grad()
     def reset_parameters(self):
         """Reset memory to small noise and reinitialize projections."""
-        d = self.cfg.d_model
-        H = self.cfg.n_heads
-        S = self.cfg.mem_slots
-
         self.fast_keys.zero_()
         self.fast_vals.zero_()
         self.deep_keys.zero_()
@@ -229,8 +225,7 @@ class DualTierMiras(nn.Module):
                 "confidence": [B, 1],
             }
         """
-        B, D = query.shape
-        H = self.cfg.n_heads
+        B, _ = query.shape
         S = self.cfg.mem_slots
 
         q = self.query_proj(query)  # [B, D]
@@ -240,8 +235,10 @@ class DualTierMiras(nn.Module):
         deep_keys = self.deep_keys.expand(B, -1, -1, -1)
 
         # Similarities
-        sim_fast = _cosine_sim(q_heads.expand(-1, -1, S, -1), fast_keys)  # [B, H, S]
-        sim_deep = _cosine_sim(q_heads.expand(-1, -1, S, -1), deep_keys)
+        sim_fast = _cosine_sim(
+            q_heads.expand(-1, -1, S, -1), fast_keys)  # [B, H, S]
+        sim_deep = _cosine_sim(
+            q_heads.expand(-1, -1, S, -1), deep_keys)
 
         if self.cfg.use_sparse_attention and self.cfg.top_k_retrieval < S:
             k = self.cfg.top_k_retrieval
@@ -262,7 +259,8 @@ class DualTierMiras(nn.Module):
         fast_vals = self.fast_vals.expand(B, -1, -1, -1)
         deep_vals = self.deep_vals.expand(B, -1, -1, -1)
 
-        v_fast = torch.einsum("bhs,bhsd->bhd", att_fast, fast_vals)  # [B, H, d_head]
+        v_fast = torch.einsum(
+            "bhs,bhsd->bhd", att_fast, fast_vals)  # [B, H, d_head]
         v_deep = torch.einsum("bhs,bhsd->bhd", att_deep, deep_vals)
 
         v_fast = v_fast.reshape(B, -1)  # [B, D]

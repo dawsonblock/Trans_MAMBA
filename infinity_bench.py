@@ -25,7 +25,7 @@ This is deliberately simple: single-process vec env, PPO with GAE, no wandb.
 import argparse
 import time
 from dataclasses import dataclass
-from typing import Tuple, List
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -288,7 +288,8 @@ class VecEnv:
         return np.stack(obs_list, axis=0), np.array(done_list, dtype=bool)
 
     def step(self, actions: np.ndarray):
-        obs_list, rew_list, done_list, trunc_list, info_list = [], [], [], [], []
+        obs_list, rew_list = [], []
+        done_list, trunc_list, info_list = [], [], []
 
         for env, a in zip(self.envs, actions):
             out = env.step(a)

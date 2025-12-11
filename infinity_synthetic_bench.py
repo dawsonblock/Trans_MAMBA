@@ -20,7 +20,7 @@ Usage examples:
 import argparse
 import time
 from dataclasses import dataclass
-from typing import Tuple, List, Any, Optional
+from typing import Tuple, List, Any
 
 import numpy as np
 import torch
