@@ -43,37 +43,34 @@ import matplotlib.pyplot as plt
 # ============================================================
 
 CONFIG = {
-# Environment
-"horizon": 40,              # Delay between cue and query (memory requirement)
-"num_actions": 4,           # Number of cues (random baseline = 1/num_actions = 25%)
-"num_envs": 16,             # Parallel environments for faster training
-"noise_scale": 0.0,         # Noise during delay period (0.0 = clean)
+    # Environment
+    "horizon": 40,              # Delay between cue and query (memory requirement)
+    "num_actions": 4,           # Number of cues (random baseline = 1/num_actions = 25%)
+    "num_envs": 16,             # Parallel environments for faster training
+    "noise_scale": 0.0,         # Noise during delay period (0.0 = clean)
 
-```
-# Model architecture
-"d_model": 64,              # Hidden dimension (number of SSM channels)
-"K": 4,                     # Conv kernel size (local pattern window)
-"min_timescale": 10.0,      # Shortest memory timescale (τ_min)
-"max_timescale": 2000.0,    # Longest memory timescale (τ_max)
+    # Model architecture
+    "d_model": 64,              # Hidden dimension (number of SSM channels)
+    "K": 4,                     # Conv kernel size (local pattern window)
+    "min_timescale": 10.0,      # Shortest memory timescale (τ_min)
+    "max_timescale": 2000.0,    # Longest memory timescale (τ_max)
 
-# Training hyperparameters
-"num_updates": 300,         # Number of PPO updates
-"lr": 3e-4,                 # Learning rate
-"gamma": 0.99,              # Discount factor
-"lam": 0.95,                # GAE lambda
-"clip_eps": 0.2,            # PPO clip epsilon
-"ppo_epochs": 4,            # PPO epochs per update
-"max_grad_norm": 0.5,       # Gradient clipping
-"entropy_coef": 0.01,       # Entropy bonus coefficient
-"value_coef": 0.5,          # Value loss coefficient
+    # Training hyperparameters
+    "num_updates": 300,         # Number of PPO updates
+    "lr": 3e-4,                 # Learning rate
+    "gamma": 0.99,              # Discount factor
+    "lam": 0.95,                # GAE lambda
+    "clip_eps": 0.2,            # PPO clip epsilon
+    "ppo_epochs": 4,            # PPO epochs per update
+    "max_grad_norm": 0.5,       # Gradient clipping
+    "entropy_coef": 0.01,       # Entropy bonus coefficient
+    "value_coef": 0.5,          # Value loss coefficient
 
-# Logging
-"log_interval": 10,         # Print every N updates
+    # Logging
+    "log_interval": 10,         # Print every N updates
 
-# Reproducibility
-"seed": 42,
-```
-
+    # Reproducibility
+    "seed": 42,
 }
 
 # ============================================================
@@ -83,12 +80,12 @@ CONFIG = {
 # ============================================================
 
 def get_device() -> torch.device:
-"""Auto-detect best available device: CUDA > MPS > CPU."""
-if torch.cuda.is_available():
-return torch.device("cuda")
-if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-return torch.device("mps")
-return torch.device("cpu")
+    """Auto-detect best available device: CUDA > MPS > CPU."""
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
 
 # ============================================================
 
@@ -100,7 +97,6 @@ class VectorizedDelayedCueEnv:
 """
 Batched delayed-cue task that requires genuine memory.
 
-```
 Timeline (per env, length = horizon):
     t = 0:        [CUE]    cue visible as one-hot, is_start=1
     t = 1..H-2:   [DELAY]  zeros (+ optional noise)
@@ -223,7 +219,6 @@ def step(
     }
 
     return obs, rewards, self.dones.copy(), info
-```
 
 # ============================================================
 
@@ -236,7 +231,6 @@ class SSMState:
 """
 Recurrent state for StreamingSSMCell.
 
-```
 This is the "0T memory" - fixed size regardless of sequence length.
 
 Attributes:
@@ -273,7 +267,6 @@ def mask_done(self, done: torch.Tensor) -> "SSMState":
     conv = self.conv_state * mask.view(-1, 1, 1)
     ssm = self.ssm_state * mask.view(-1, 1)
     return SSMState(conv, ssm)
-```
 
 # ============================================================
 
@@ -285,7 +278,6 @@ class StreamingSSMCell(nn.Module):
 """
 0T Memory Cell: O(1) state size, O(T) compute for sequence length T.
 
-```
 Architecture:
     1. Depthwise 1D conv window of size K (FIR, local patterns)
     2. Scalar SSM per channel with pole A ∈ (0,1) (IIR, long-range memory)
@@ -506,7 +498,6 @@ def get_diagnostics(self) -> Dict[str, float]:
         "effective_horizon_min": (1.0 / (1.0 - A.min() + 1e-8)).item(),
         "effective_horizon_max": (1.0 / (1.0 - A.max() + 1e-8)).item(),
     }
-```
 
 # ============================================================
 
@@ -518,7 +509,6 @@ class OTMPolicy(nn.Module):
 """
 0T Memory Policy Network.
 
-```
 Architecture:
     obs_t → obs_embed → StreamingSSMCell → policy_head → logits
                                          → value_head → value
@@ -603,7 +593,6 @@ def forward(
 def get_diagnostics(self) -> Dict[str, float]:
     """Return SSM diagnostics."""
     return self.ssm.get_diagnostics()
-```
 
 # ============================================================
 
@@ -621,7 +610,6 @@ lam: float,
 """
 Compute Generalized Advantage Estimation (GAE).
 
-```
 Args:
     rewards: (T, B) rewards at each timestep
     values: (T, B) value estimates at each timestep
@@ -647,7 +635,6 @@ for t in reversed(range(T)):
 
 returns = advantages + values
 return returns, advantages
-```
 
 # ============================================================
 
@@ -658,7 +645,6 @@ return returns, advantages
 class Trainer:
 """Complete PPO training loop with logging and visualization."""
 
-```
 def __init__(self, config: dict):
     self.config = config
     self.device = get_device()
@@ -1038,7 +1024,6 @@ def plot_progress(self):
     plt.savefig("ot_memory_training.png", dpi=150)
     print("\nPlot saved to: ot_memory_training.png")
     plt.show()
-```
 
 # ============================================================
 
@@ -1055,11 +1040,9 @@ print("A truly recurrent SSM agent with O(1) state size per step.")
 print("No history buffers, no O(T²) tricks - just proper SSM math.")
 print("=" * 70 + "\n")
 
-```
 trainer = Trainer(CONFIG)
 trainer.train()
 return trainer
-```
 
 if **name** == "**main**":
 trainer = main()

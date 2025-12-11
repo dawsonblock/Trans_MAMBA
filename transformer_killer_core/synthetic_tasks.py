@@ -51,13 +51,14 @@ class CopyMemoryDataset(Dataset):
     def __len__(self) -> int:
         return self.num_samples
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         L = self.copy_length
         D = self.delay
         T = self.seq_len
 
         x = torch.zeros(T, dtype=torch.long)
         y = torch.zeros(T, dtype=torch.long)
+        mask = torch.zeros(T, dtype=torch.float)
 
         # Sample sequence to remember (avoid using 0 and delimiter)
         data = torch.randint(low=1, high=self.vocab_size - 1, size=(L,))
@@ -75,8 +76,9 @@ class CopyMemoryDataset(Dataset):
         length = end_out - start_out
         if length > 0:
             y[start_out:end_out] = data[:length]
+            mask[start_out:end_out] = 1.0  # Loss mask for recall positions
 
-        return x, y
+        return x, y, mask
 
     def get_difficulty(self) -> dict:
         """Return task difficulty metrics."""
@@ -119,12 +121,13 @@ class AssocRecallDataset(Dataset):
     def __len__(self) -> int:
         return self.num_samples
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         T = self.seq_len
         N = self.num_pairs
 
         x = torch.zeros(T, dtype=torch.long)
         y = torch.zeros(T, dtype=torch.long)
+        mask = torch.zeros(T, dtype=torch.float)
 
         # Sample keys/values (avoid 0 and delimiter)
         keys = torch.randint(low=1, high=self.vocab_size - 1, size=(N,))
@@ -153,8 +156,9 @@ class AssocRecallDataset(Dataset):
             # Target at next position
             if pos + 1 < T:
                 y[pos + 1] = q_val
+                mask[pos + 1] = 1.0  # Loss mask for answer position
 
-        return x, y
+        return x, y, mask
 
     def get_difficulty(self) -> dict:
         """Return task difficulty metrics."""

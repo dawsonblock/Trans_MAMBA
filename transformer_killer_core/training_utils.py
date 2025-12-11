@@ -413,3 +413,34 @@ def get_param_count(model: nn.Module) -> Dict[str, int]:
         "trainable": trainable,
         "non_trainable": total - trainable,
     }
+
+
+def get_scheduler(
+    optimizer: torch.optim.Optimizer,
+    schedule_type: str = "cosine",
+    warmup_steps: int = 100,
+    max_steps: int = 10000,
+    min_lr_ratio: float = 0.1,
+):
+    """Factory function for learning rate schedulers.
+
+    Args:
+        optimizer: PyTorch optimizer
+        schedule_type: 'cosine', 'linear', or 'constant'
+        warmup_steps: Number of warmup steps
+        max_steps: Total training steps
+        min_lr_ratio: Minimum LR as fraction of base LR
+
+    Returns:
+        Scheduler instance with step() and get_lr() methods
+    """
+    if schedule_type == "cosine":
+        return CosineWarmupScheduler(
+            optimizer, warmup_steps, max_steps, min_lr_ratio
+        )
+    elif schedule_type == "linear":
+        return LinearWarmupScheduler(optimizer, warmup_steps, max_steps)
+    elif schedule_type == "constant":
+        return None
+    else:
+        raise ValueError(f"Unknown schedule type: {schedule_type}")
