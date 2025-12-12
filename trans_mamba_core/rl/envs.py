@@ -11,11 +11,6 @@ from typing import Any, Dict, Tuple
 
 import numpy as np
 
-try:
-    import gymnasium as gym
-except ImportError:
-    import gym
-
 
 @dataclass
 class EnvConfig:
@@ -31,6 +26,16 @@ class CartPoleEnv:
     """Vectorized CartPole environment using Gymnasium."""
 
     def __init__(self, num_envs: int = 8):
+        try:
+            import gymnasium as gym
+        except ImportError:
+            try:
+                import gym
+            except ImportError as exc:
+                raise ImportError(
+                    "CartPoleEnv requires gymnasium or gym to be installed"
+                ) from exc
+
         self.num_envs = num_envs
         self.envs = [gym.make("CartPole-v1") for _ in range(num_envs)]
         self.obs_dim = 4

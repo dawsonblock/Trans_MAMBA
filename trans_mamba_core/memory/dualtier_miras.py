@@ -390,6 +390,228 @@ class DualTierMiras(nn.Module):
         }
         return output, new_state, aux
 
+    def _write_packed(
+        self,
+        state: tuple[
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+        ],
+        key: torch.Tensor,
+        value: torch.Tensor,
+        write_mask: Optional[torch.Tensor],
+        surprise: torch.Tensor,
+    ) -> tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+    ]:
+        (
+            fast_keys,
+            fast_vals,
+            deep_keys,
+            deep_vals,
+            fast_ptr_f,
+            deep_ptr_f,
+            mean,
+            var,
+        ) = state
+
+        B = key.size(0)
+        H = self.cfg.n_heads
+        S = self.cfg.mem_slots
+        device = key.device
+
+        if write_mask is None:
+            write_mask = torch.ones(B, dtype=torch.bool, device=device)
+        else:
+            write_mask = write_mask.to(device=device, dtype=torch.bool)
+
+        k_proj = self.key_proj(key)
+        v_proj = self.value_proj(value)
+
+        k_heads = self._split_heads(k_proj, self.head_dim)
+        v_heads = self._split_heads(v_proj, self.value_head_dim)
+
+        deep_mask = surprise > self.cfg.surprise_threshold
+
+        write_mask_bh = write_mask[:, None].expand(B, H)
+        mask_fast = write_mask_bh.unsqueeze(-1).unsqueeze(-1)
+
+        fast_ptr_i = fast_ptr_f.long()
+        deep_ptr_i = deep_ptr_f.long()
+
+        fast_idx_k = fast_ptr_i.unsqueeze(-1).unsqueeze(-1)
+        fast_idx_k = fast_idx_k.expand(B, H, 1, self.head_dim)
+        fast_idx_v = fast_ptr_i.unsqueeze(-1).unsqueeze(-1)
+        fast_idx_v = fast_idx_v.expand(B, H, 1, self.value_head_dim)
+
+        fast_keys_scattered = fast_keys.scatter(
+            2,
+            fast_idx_k,
+            k_heads.unsqueeze(2),
+        )
+        fast_vals_scattered = fast_vals.scatter(
+            2,
+            fast_idx_v,
+            v_heads.unsqueeze(2),
+        )
+        fast_keys = torch.where(mask_fast, fast_keys_scattered, fast_keys)
+        fast_vals = torch.where(mask_fast, fast_vals_scattered, fast_vals)
+
+        deep_write_mask = write_mask & deep_mask
+        deep_write_mask_bh = deep_write_mask[:, None].expand(B, H)
+        mask_deep = deep_write_mask_bh.unsqueeze(-1).unsqueeze(-1)
+
+        deep_idx_k = deep_ptr_i.unsqueeze(-1).unsqueeze(-1)
+        deep_idx_k = deep_idx_k.expand(B, H, 1, self.head_dim)
+        deep_idx_v = deep_ptr_i.unsqueeze(-1).unsqueeze(-1)
+        deep_idx_v = deep_idx_v.expand(B, H, 1, self.value_head_dim)
+
+        deep_keys_scattered = deep_keys.scatter(
+            2,
+            deep_idx_k,
+            k_heads.unsqueeze(2),
+        )
+        deep_vals_scattered = deep_vals.scatter(
+            2,
+            deep_idx_v,
+            v_heads.unsqueeze(2),
+        )
+        deep_keys = torch.where(mask_deep, deep_keys_scattered, deep_keys)
+        deep_vals = torch.where(mask_deep, deep_vals_scattered, deep_vals)
+
+        inc_fast = write_mask_bh.to(dtype=fast_ptr_f.dtype)
+        fast_ptr_f = torch.remainder(fast_ptr_f + inc_fast, float(S))
+
+        inc_deep = deep_write_mask_bh.to(dtype=deep_ptr_f.dtype)
+        deep_ptr_f = torch.remainder(deep_ptr_f + inc_deep, float(S))
+
+        if self.cfg.use_decay:
+            fast_vals = fast_vals * self.cfg.decay_rate
+            deep_vals = deep_vals * self.cfg.decay_rate
+
+        return (
+            fast_keys,
+            fast_vals,
+            deep_keys,
+            deep_vals,
+            fast_ptr_f,
+            deep_ptr_f,
+            mean,
+            var,
+        )
+
+    def _read_write_step_packed(
+        self,
+        query: torch.Tensor,
+        write_value: torch.Tensor,
+        state: tuple[
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+        ],
+    ) -> tuple[
+        torch.Tensor,
+        tuple[
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+        ],
+        dict[str, torch.Tensor],
+    ]:
+        (
+            fast_keys,
+            fast_vals,
+            deep_keys,
+            deep_vals,
+            fast_ptr_f,
+            deep_ptr_f,
+            mean,
+            var,
+        ) = state
+
+        B = query.size(0)
+        cfg = self.cfg
+
+        q = self.query_proj(query)
+        q_heads = self._split_heads(q, self.head_dim)
+
+        v_fast = cosine_attention(
+            q_heads,
+            fast_keys,
+            fast_vals,
+            temperature=cfg.temperature,
+            top_k=cfg.top_k,
+        )
+        v_deep = cosine_attention(
+            q_heads,
+            deep_keys,
+            deep_vals,
+            temperature=cfg.temperature,
+            top_k=cfg.top_k,
+        )
+
+        v_fast = v_fast.reshape(B, -1)
+        v_deep = v_deep.reshape(B, -1)
+
+        gate = torch.tanh(self.context_gate(query))
+        mix = torch.sigmoid(self.mix_logit + gate)
+        output = mix * v_fast + (1 - mix) * v_deep
+        output = self.out_proj(output)
+
+        if self.conf_head is not None:
+            conf = self.conf_head(query)
+            output = output * conf
+
+        h = self.surprise_proj(query)
+        new_mean, new_var = self._update_surprise_stats(h, mean, var)
+        surprise = self._compute_surprise(h, mean, var)
+
+        packed = (
+            fast_keys,
+            fast_vals,
+            deep_keys,
+            deep_vals,
+            fast_ptr_f,
+            deep_ptr_f,
+            new_mean,
+            new_var,
+        )
+        packed = self._write_packed(
+            packed,
+            query,
+            write_value,
+            write_mask=None,
+            surprise=surprise,
+        )
+
+        aux = {
+            "surprise": surprise,
+            "mix": mix,
+        }
+        return output, packed, aux
+
     def read_write_chunk(
         self,
         queries: torch.Tensor,
@@ -406,45 +628,86 @@ class DualTierMiras(nn.Module):
         deep_ptr_before = state.deep_ptr
 
         try:
-            from torch.func import scan  # type: ignore
+            from torch._higher_order_ops import scan  # type: ignore
+        except Exception as exc:
+            raise RuntimeError(
+                "torch._higher_order_ops.scan is required for read_write_chunk"
+            ) from exc
 
-            def step_fn(
-                carry: MemoryState,
-                x_t: Tuple[torch.Tensor, torch.Tensor],
-            ) -> Tuple[
-                MemoryState,
-                Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-            ]:
-                q_t, w_t = x_t
-                out_t, new_state, aux = self._read_write_step(q_t, w_t, carry)
-                return new_state, (out_t, aux["surprise"], aux["mix"])
+        def step_fn(
+            carry: tuple[
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+            ],
+            x_t: Tuple[torch.Tensor, torch.Tensor],
+        ) -> Tuple[
+            tuple[
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+                torch.Tensor,
+            ],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        ]:
+            q_t, w_t = x_t
+            out_t, new_carry, aux = self._read_write_step_packed(
+                q_t,
+                w_t,
+                carry,
+            )
+            return new_carry, (out_t, aux["surprise"], aux["mix"])
 
-            q_seq = queries.transpose(0, 1)
-            w_seq = write_values.transpose(0, 1)
+        q_seq = queries.transpose(0, 1)
+        w_seq = write_values.transpose(0, 1)
 
-            final_state, outputs = scan(step_fn, state, (q_seq, w_seq))
-            out_seq, surprise_seq, mix_seq = outputs
-            mem_out = out_seq.transpose(0, 1)
-            surprise = surprise_seq.transpose(0, 1)
-            mix = mix_seq.transpose(0, 1)
-        except Exception:
-            mem_out_list = []
-            surprise_list = []
-            mix_list = []
-            cur_state = state
-            for t in range(T):
-                out_t, cur_state, aux = self._read_write_step(
-                    queries[:, t, :],
-                    write_values[:, t, :],
-                    cur_state,
-                )
-                mem_out_list.append(out_t.unsqueeze(1))
-                surprise_list.append(aux["surprise"].unsqueeze(1))
-                mix_list.append(aux["mix"].unsqueeze(1))
-            mem_out = torch.cat(mem_out_list, dim=1)
-            surprise = torch.cat(surprise_list, dim=1)
-            mix = torch.cat(mix_list, dim=1)
-            final_state = cur_state
+        init_carry = (
+            state.fast_keys,
+            state.fast_vals,
+            state.deep_keys,
+            state.deep_vals,
+            state.fast_ptr.to(dtype=torch.float32),
+            state.deep_ptr.to(dtype=torch.float32),
+            state.surprise_mean,
+            state.surprise_var,
+        )
+
+        final_carry, outputs = scan(step_fn, init_carry, (q_seq, w_seq), dim=0)
+        out_seq, surprise_seq, mix_seq = outputs
+        mem_out = out_seq.transpose(0, 1)
+        surprise = surprise_seq.transpose(0, 1)
+        mix = mix_seq.transpose(0, 1)
+
+        (
+            final_fast_keys,
+            final_fast_vals,
+            final_deep_keys,
+            final_deep_vals,
+            final_fast_ptr_f,
+            final_deep_ptr_f,
+            final_mean,
+            final_var,
+        ) = final_carry
+
+        final_state = MemoryState(
+            fast_keys=final_fast_keys,
+            fast_vals=final_fast_vals,
+            deep_keys=final_deep_keys,
+            deep_vals=final_deep_vals,
+            fast_ptr=final_fast_ptr_f.long(),
+            deep_ptr=final_deep_ptr_f.long(),
+            surprise_mean=final_mean,
+            surprise_var=final_var,
+        )
 
         aux_out = {
             "fast_ptr_before": fast_ptr_before,
@@ -490,35 +753,48 @@ class DualTierMiras(nn.Module):
         fast_ptr = state.fast_ptr.clone()
         deep_ptr = state.deep_ptr.clone()
 
-        b_idx = torch.arange(B, device=device).unsqueeze(1).expand(B, H)
-        h_idx = torch.arange(H, device=device).unsqueeze(0).expand(B, H)
-
         write_mask_bh = write_mask[:, None].expand(B, H)
-        if write_mask_bh.any():
-            mask_flat = write_mask_bh.reshape(-1)
-            b_sel = b_idx.reshape(-1)[mask_flat]
-            h_sel = h_idx.reshape(-1)[mask_flat]
-            s_sel = fast_ptr.reshape(-1)[mask_flat]
+        mask_fast = write_mask_bh.unsqueeze(-1).unsqueeze(-1)
 
-            k_sel = k_heads.reshape(-1, self.head_dim)[mask_flat]
-            v_sel = v_heads.reshape(-1, self.value_head_dim)[mask_flat]
+        fast_idx_k = fast_ptr.unsqueeze(-1).unsqueeze(-1)
+        fast_idx_k = fast_idx_k.expand(B, H, 1, self.head_dim)
+        fast_idx_v = fast_ptr.unsqueeze(-1).unsqueeze(-1)
+        fast_idx_v = fast_idx_v.expand(B, H, 1, self.value_head_dim)
 
-            fast_keys[b_sel, h_sel, s_sel] = k_sel
-            fast_vals[b_sel, h_sel, s_sel] = v_sel
+        fast_keys_scattered = fast_keys.scatter(
+            2,
+            fast_idx_k,
+            k_heads.unsqueeze(2),
+        )
+        fast_vals_scattered = fast_vals.scatter(
+            2,
+            fast_idx_v,
+            v_heads.unsqueeze(2),
+        )
+        fast_keys = torch.where(mask_fast, fast_keys_scattered, fast_keys)
+        fast_vals = torch.where(mask_fast, fast_vals_scattered, fast_vals)
 
         deep_write_mask = write_mask & deep_mask
         deep_write_mask_bh = deep_write_mask[:, None].expand(B, H)
-        if deep_write_mask_bh.any():
-            mask_flat = deep_write_mask_bh.reshape(-1)
-            b_sel = b_idx.reshape(-1)[mask_flat]
-            h_sel = h_idx.reshape(-1)[mask_flat]
-            s_sel = deep_ptr.reshape(-1)[mask_flat]
+        mask_deep = deep_write_mask_bh.unsqueeze(-1).unsqueeze(-1)
 
-            k_sel = k_heads.reshape(-1, self.head_dim)[mask_flat]
-            v_sel = v_heads.reshape(-1, self.value_head_dim)[mask_flat]
+        deep_idx_k = deep_ptr.unsqueeze(-1).unsqueeze(-1)
+        deep_idx_k = deep_idx_k.expand(B, H, 1, self.head_dim)
+        deep_idx_v = deep_ptr.unsqueeze(-1).unsqueeze(-1)
+        deep_idx_v = deep_idx_v.expand(B, H, 1, self.value_head_dim)
 
-            deep_keys[b_sel, h_sel, s_sel] = k_sel
-            deep_vals[b_sel, h_sel, s_sel] = v_sel
+        deep_keys_scattered = deep_keys.scatter(
+            2,
+            deep_idx_k,
+            k_heads.unsqueeze(2),
+        )
+        deep_vals_scattered = deep_vals.scatter(
+            2,
+            deep_idx_v,
+            v_heads.unsqueeze(2),
+        )
+        deep_keys = torch.where(mask_deep, deep_keys_scattered, deep_keys)
+        deep_vals = torch.where(mask_deep, deep_vals_scattered, deep_vals)
 
         fast_ptr = (fast_ptr + write_mask[:, None].long()) % S
         deep_ptr = (deep_ptr + deep_write_mask[:, None].long()) % S

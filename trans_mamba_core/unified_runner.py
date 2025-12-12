@@ -81,14 +81,20 @@ def get_device() -> torch.device:
     return torch.device("cpu")
 
 
-def build_lm_controller(name: str, task_cfg: SyntheticTaskConfig):
+def build_lm_controller(
+    name: str,
+    task_cfg: SyntheticTaskConfig,
+    d_model: int,
+    n_layers: int,
+    mem_slots: int,
+):
     """Build LM controller by name."""
 
     if name == "transformer":
         cfg = TransformerConfig(
             vocab_size=task_cfg.vocab_size,
-            d_model=task_cfg.d_model,
-            n_layers=task_cfg.n_layers,
+            d_model=d_model,
+            n_layers=n_layers,
             n_heads=4,
             max_seq_len=task_cfg.seq_len,
         )
@@ -97,17 +103,17 @@ def build_lm_controller(name: str, task_cfg: SyntheticTaskConfig):
     if name == "mamba":
         cfg = MambaConfig(
             vocab_size=task_cfg.vocab_size,
-            d_model=task_cfg.d_model,
-            n_layers=task_cfg.n_layers,
+            d_model=d_model,
+            n_layers=n_layers,
         )
         return MambaController(cfg)
 
     if name == "mamba_dualmem":
         cfg = MambaDualMemConfig(
             vocab_size=task_cfg.vocab_size,
-            d_model=task_cfg.d_model,
-            n_layers=task_cfg.n_layers,
-            mem_slots=task_cfg.mem_slots,
+            d_model=d_model,
+            n_layers=n_layers,
+            mem_slots=mem_slots,
         )
         return MambaDualMemController(cfg)
 
@@ -131,12 +137,15 @@ def run_lm_mode(args):
         delay=args.delay,
         copy_length=args.copy_length,
         num_pairs=args.num_pairs,
+    )
+
+    model = build_lm_controller(
+        args.controller,
+        task_cfg,
         d_model=args.d_model,
         n_layers=args.n_layers,
         mem_slots=args.mem_slots,
     )
-
-    model = build_lm_controller(args.controller, task_cfg)
 
     bench_cfg = LMBenchConfig(
         task=args.task,
@@ -171,10 +180,22 @@ def run_lm_mode(args):
     results = benchmark.train()
 
     if out_dir:
+        eval_metrics = benchmark.evaluate()
         metrics_path = os.path.join(out_dir, "metrics.jsonl")
         with open(metrics_path, "w") as f:
-            for m in getattr(benchmark, "metrics_history", []):
-                f.write(json.dumps(m) + "\n")
+            history = getattr(benchmark, "metrics_history", [])
+            for m in history:
+                f.write(
+                    json.dumps(
+                        {
+                            "epoch": m.get("epoch"),
+                            "train_loss": m.get("loss"),
+                            "eval_loss": eval_metrics.get("eval_loss"),
+                            "accuracy": m.get("accuracy"),
+                        }
+                    )
+                    + "\n"
+                )
         torch.save(model.state_dict(), os.path.join(out_dir, "final.pt"))
 
     if args.save_dir and not args.out_dir:
@@ -293,18 +314,19 @@ def run_rl_mode(args):
         total_reward += rollout_reward
 
         if metrics_f is not None:
+            mean_return = float(rollout_reward) / max(
+                float(args.num_envs),
+                1.0,
+            )
             metrics_f.write(
                 json.dumps(
                     {
                         "update": update,
-                        "rollout_reward": float(rollout_reward),
-                        "mean_return": float(rollout_reward)
-                        / max(float(args.num_envs), 1.0),
-                        "loss": float(metrics.get("loss", 0.0)),
+                        "mean_return": mean_return,
                         "policy_loss": float(metrics.get("policy_loss", 0.0)),
                         "value_loss": float(metrics.get("value_loss", 0.0)),
                         "entropy": float(metrics.get("entropy", 0.0)),
-                        "approx_kl": float(metrics.get("approx_kl", 0.0)),
+                        "kl": float(metrics.get("approx_kl", 0.0)),
                         "clipfrac": float(metrics.get("clipfrac", 0.0)),
                     }
                 )
@@ -383,6 +405,25 @@ def main():
         help="Output directory for run artifacts (alias of save_dir)",
     )
 
+    parser.add_argument(
+        "--d_model",
+        type=int,
+        default=128,
+        help="Model width for LM/RL controllers and agents",
+    )
+    parser.add_argument(
+        "--n_layers",
+        type=int,
+        default=4,
+        help="Number of layers for LM/RL controllers and agents",
+    )
+    parser.add_argument(
+        "--mem_slots",
+        type=int,
+        default=64,
+        help="Memory slots for DualMem controllers/agents",
+    )
+
     lm_group = parser.add_argument_group("LM Mode")
     lm_group.add_argument(
         "--task",
@@ -409,9 +450,6 @@ def main():
     lm_group.add_argument("--num_pairs", type=int, default=4)
     lm_group.add_argument("--epochs", type=int, default=20)
     lm_group.add_argument("--batch_size", type=int, default=32)
-    lm_group.add_argument("--d_model", type=int, default=128)
-    lm_group.add_argument("--n_layers", type=int, default=4)
-    lm_group.add_argument("--mem_slots", type=int, default=64)
 
     rl_group = parser.add_argument_group("RL Mode")
     rl_group.add_argument(
@@ -431,9 +469,6 @@ def main():
     rl_group.add_argument("--rollout_length", type=int, default=128)
     rl_group.add_argument("--horizon", type=int, default=40)
     rl_group.add_argument("--num_actions", type=int, default=4)
-    rl_group.add_argument("--d_model", type=int, default=64)
-    rl_group.add_argument("--n_layers", type=int, default=2)
-    rl_group.add_argument("--mem_slots", type=int, default=32)
     rl_group.add_argument("--gamma", type=float, default=0.99)
     rl_group.add_argument("--gae_lambda", type=float, default=0.95)
     rl_group.add_argument("--clip_eps", type=float, default=0.2)
