@@ -6,7 +6,9 @@ extend-exclude =
     .ruff_cache,
     __pycache__,
     external,
+    legacy,
     mamba_ssm,
+    transformer_killer_colab.ipynb,
     ot_memory_agent,
     transformer_killer_core,
     unified_trans_infinity

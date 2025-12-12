@@ -3,6 +3,7 @@ line-length = 79
 target-version = "py310"
 exclude = [
   "external",
+  "legacy",
   "mamba_ssm",
   "transformer_killer_core",
   "unified_trans_infinity",
@@ -11,8 +12,12 @@ exclude = [
 
 [tool.pytest.ini_options]
 addopts = "-ra"
+testpaths = [
+  "trans_mamba_core/tests",
+]
 norecursedirs = [
   "external",
+  "legacy",
   "mamba_ssm",
   "transformer_killer_core",
   "unified_trans_infinity",
