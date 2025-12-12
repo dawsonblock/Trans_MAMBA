@@ -28,6 +28,9 @@ class MemoryState(NamedTuple):
     surprise_var: torch.Tensor
 
 
+DualTierMirasState = MemoryState
+
+
 @dataclass
 class DualTierMirasConfig:
     """Configuration for DualTierMiras memory module."""
@@ -310,6 +313,148 @@ class DualTierMiras(nn.Module):
             aux["confidence"] = conf
 
         return output, new_state, aux
+
+    def _read_write_step(
+        self,
+        query: torch.Tensor,
+        write_value: torch.Tensor,
+        state: MemoryState,
+    ) -> Tuple[torch.Tensor, MemoryState, Dict[str, torch.Tensor]]:
+        B = query.size(0)
+        cfg = self.cfg
+
+        q = self.query_proj(query)
+        q_heads = self._split_heads(q, self.head_dim)
+
+        v_fast = cosine_attention(
+            q_heads,
+            state.fast_keys,
+            state.fast_vals,
+            temperature=cfg.temperature,
+            top_k=cfg.top_k,
+        )
+        v_deep = cosine_attention(
+            q_heads,
+            state.deep_keys,
+            state.deep_vals,
+            temperature=cfg.temperature,
+            top_k=cfg.top_k,
+        )
+
+        v_fast = v_fast.reshape(B, -1)
+        v_deep = v_deep.reshape(B, -1)
+
+        gate = torch.tanh(self.context_gate(query))
+        mix = torch.sigmoid(self.mix_logit + gate)
+        output = mix * v_fast + (1 - mix) * v_deep
+        output = self.out_proj(output)
+
+        if self.conf_head is not None:
+            conf = self.conf_head(query)
+            output = output * conf
+
+        h = self.surprise_proj(query)
+        new_mean, new_var = self._update_surprise_stats(
+            h,
+            state.surprise_mean,
+            state.surprise_var,
+        )
+        surprise = self._compute_surprise(
+            h,
+            state.surprise_mean,
+            state.surprise_var,
+        )
+
+        new_state = MemoryState(
+            fast_keys=state.fast_keys,
+            fast_vals=state.fast_vals,
+            deep_keys=state.deep_keys,
+            deep_vals=state.deep_vals,
+            fast_ptr=state.fast_ptr,
+            deep_ptr=state.deep_ptr,
+            surprise_mean=new_mean,
+            surprise_var=new_var,
+        )
+
+        new_state = self._write(
+            new_state,
+            query,
+            write_value,
+            write_mask=None,
+            surprise=surprise,
+        )
+
+        aux = {
+            "surprise": surprise,
+            "mix": mix,
+        }
+        return output, new_state, aux
+
+    def read_write_chunk(
+        self,
+        queries: torch.Tensor,
+        write_values: torch.Tensor,
+        state: DualTierMirasState,
+    ) -> tuple[torch.Tensor, DualTierMirasState, dict]:
+        B, T, _D = queries.shape
+        device = queries.device
+
+        if state is None:
+            state = self.init_state(B, device)
+
+        fast_ptr_before = state.fast_ptr
+        deep_ptr_before = state.deep_ptr
+
+        try:
+            from torch.func import scan  # type: ignore
+
+            def step_fn(
+                carry: MemoryState,
+                x_t: Tuple[torch.Tensor, torch.Tensor],
+            ) -> Tuple[
+                MemoryState,
+                Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+            ]:
+                q_t, w_t = x_t
+                out_t, new_state, aux = self._read_write_step(q_t, w_t, carry)
+                return new_state, (out_t, aux["surprise"], aux["mix"])
+
+            q_seq = queries.transpose(0, 1)
+            w_seq = write_values.transpose(0, 1)
+
+            final_state, outputs = scan(step_fn, state, (q_seq, w_seq))
+            out_seq, surprise_seq, mix_seq = outputs
+            mem_out = out_seq.transpose(0, 1)
+            surprise = surprise_seq.transpose(0, 1)
+            mix = mix_seq.transpose(0, 1)
+        except Exception:
+            mem_out_list = []
+            surprise_list = []
+            mix_list = []
+            cur_state = state
+            for t in range(T):
+                out_t, cur_state, aux = self._read_write_step(
+                    queries[:, t, :],
+                    write_values[:, t, :],
+                    cur_state,
+                )
+                mem_out_list.append(out_t.unsqueeze(1))
+                surprise_list.append(aux["surprise"].unsqueeze(1))
+                mix_list.append(aux["mix"].unsqueeze(1))
+            mem_out = torch.cat(mem_out_list, dim=1)
+            surprise = torch.cat(surprise_list, dim=1)
+            mix = torch.cat(mix_list, dim=1)
+            final_state = cur_state
+
+        aux_out = {
+            "fast_ptr_before": fast_ptr_before,
+            "fast_ptr_after": final_state.fast_ptr,
+            "deep_ptr_before": deep_ptr_before,
+            "deep_ptr_after": final_state.deep_ptr,
+            "surprise": surprise,
+            "mix": mix,
+        }
+        return mem_out, final_state, aux_out
 
     def _write(
         self,

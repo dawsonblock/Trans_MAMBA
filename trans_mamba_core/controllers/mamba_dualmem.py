@@ -125,28 +125,17 @@ class MambaDualMemController(nn.Module):
             new_mamba_states.append(new_state)
 
         mem_state = state.memory_state
-        outputs = []
-        aux_list = []
+        mem_out, mem_state, mem_aux = self.memory.read_write_chunk(
+            queries=h,
+            write_values=h,
+            state=mem_state,
+        )
 
-        for t in range(T):
-            h_t = h[:, t, :]
-
-            mem_out, mem_state, aux = self.memory(
-                query=h_t,
-                write_value=h_t,
-                write_mask=None,
-                state=mem_state,
-            )
-
-            gate_in = torch.cat([h_t, mem_out], dim=-1)
-            gate = torch.sigmoid(self.mem_gate(gate_in))
-            fused = gate * h_t + (1 - gate) * mem_out
-            fused = self.mem_ln(fused)
-
-            outputs.append(fused.unsqueeze(1))
-            aux_list.append(aux)
-
-        h = torch.cat(outputs, dim=1)
+        gate = torch.sigmoid(
+            self.mem_gate(torch.cat([h, mem_out], dim=-1))
+        )
+        fused = gate * h + (1 - gate) * mem_out
+        h = self.mem_ln(fused)
         h = self.ln_f(h)
         logits = self.lm_head(h)
 
@@ -155,9 +144,7 @@ class MambaDualMemController(nn.Module):
             memory_state=mem_state,
         )
 
-        combined_aux = {
-            "surprise": torch.stack([a["surprise"] for a in aux_list], dim=1),
-        }
+        combined_aux = {"surprise": mem_aux["surprise"]}
 
         return logits, new_state, combined_aux
 
@@ -199,22 +186,16 @@ class MambaDualMemController(nn.Module):
             new_mamba_states.append(new_state_i)
 
         mem_state = state.memory_state
-        outputs = []
-
-        for t in range(T):
-            h_t = h[:, t, :]
-            mem_out, mem_state, _aux = self.memory(
-                query=h_t,
-                write_value=h_t,
-                state=mem_state,
-            )
-            gate_in = torch.cat([h_t, mem_out], dim=-1)
-            gate = torch.sigmoid(self.mem_gate(gate_in))
-            fused = gate * h_t + (1 - gate) * mem_out
-            fused = self.mem_ln(fused)
-            outputs.append(fused.unsqueeze(1))
-
-        h = torch.cat(outputs, dim=1)
+        mem_out, mem_state, _aux = self.memory.read_write_chunk(
+            queries=h,
+            write_values=h,
+            state=mem_state,
+        )
+        gate = torch.sigmoid(
+            self.mem_gate(torch.cat([h, mem_out], dim=-1))
+        )
+        fused = gate * h + (1 - gate) * mem_out
+        h = self.mem_ln(fused)
         h = self.ln_f(h)
 
         new_state = MambaDualMemState(

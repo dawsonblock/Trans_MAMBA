@@ -102,6 +102,70 @@ class InfinityAgent(nn.Module):
         mem_state = self.memory.init_state(batch_size, device)
         return (mamba_states, mem_state)
 
+    def reset_state(
+        self,
+        state: Optional[Tuple[list, MemoryState]] = None,
+        batch_indices: Optional[torch.Tensor | list[int]] = None,
+    ) -> Tuple[list, MemoryState]:
+        """Reset agent state for all envs or selected batch indices."""
+
+        if state is None:
+            batch_size = getattr(self, "_last_batch_size", None)
+            device = getattr(self, "_last_device", None)
+            if batch_size is None or device is None:
+                raise ValueError("state is required until agent has been run")
+            return self.init_state(int(batch_size), device)
+
+        mamba_states, mem_state = state
+        device = mem_state.fast_ptr.device
+        batch_size = mem_state.fast_ptr.size(0)
+
+        if batch_indices is None:
+            return self.init_state(batch_size, device)
+
+        if isinstance(batch_indices, list):
+            idx = torch.tensor(batch_indices, dtype=torch.long, device=device)
+        else:
+            idx = batch_indices.to(device=device, dtype=torch.long)
+
+        idx = idx.unique()
+        if idx.numel() == 0:
+            return state
+
+        fresh = self.memory.init_state(batch_size, device)
+
+        fast_keys = mem_state.fast_keys.clone()
+        fast_vals = mem_state.fast_vals.clone()
+        deep_keys = mem_state.deep_keys.clone()
+        deep_vals = mem_state.deep_vals.clone()
+        fast_ptr = mem_state.fast_ptr.clone()
+        deep_ptr = mem_state.deep_ptr.clone()
+        surprise_mean = mem_state.surprise_mean.clone()
+        surprise_var = mem_state.surprise_var.clone()
+
+        fast_keys[idx] = fresh.fast_keys[idx]
+        fast_vals[idx] = fresh.fast_vals[idx]
+        deep_keys[idx] = fresh.deep_keys[idx]
+        deep_vals[idx] = fresh.deep_vals[idx]
+        fast_ptr[idx] = fresh.fast_ptr[idx]
+        deep_ptr[idx] = fresh.deep_ptr[idx]
+        surprise_mean[idx] = fresh.surprise_mean[idx]
+        surprise_var[idx] = fresh.surprise_var[idx]
+
+        new_mem_state = MemoryState(
+            fast_keys=fast_keys,
+            fast_vals=fast_vals,
+            deep_keys=deep_keys,
+            deep_vals=deep_vals,
+            fast_ptr=fast_ptr,
+            deep_ptr=deep_ptr,
+            surprise_mean=surprise_mean,
+            surprise_var=surprise_var,
+        )
+
+        new_mamba_states = [None] * self.cfg.n_layers
+        return (new_mamba_states, new_mem_state)
+
     def forward(
         self,
         obs: torch.Tensor,
@@ -122,6 +186,9 @@ class InfinityAgent(nn.Module):
 
         B = obs.size(0)
         device = obs.device
+
+        self._last_batch_size = B
+        self._last_device = device
 
         if state is None:
             state = self.init_state(B, device)

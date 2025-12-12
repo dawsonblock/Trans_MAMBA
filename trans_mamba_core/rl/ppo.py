@@ -187,6 +187,15 @@ class PPOTrainer:
             action_np = action.cpu().numpy()
             next_obs, reward, done, _, _ = env.step(action_np)
 
+            if agent_state is not None and hasattr(self.agent, "reset_state"):
+                done_arr = np.asarray(done)
+                done_idx = np.nonzero(done_arr)[0]
+                if done_idx.size > 0:
+                    agent_state = self.agent.reset_state(
+                        agent_state,
+                        batch_indices=done_idx.tolist(),
+                    )
+
             self.buffer.add(
                 obs=obs,
                 action=action_np,
@@ -243,6 +252,8 @@ class PPOTrainer:
         total_policy_loss = 0.0
         total_value_loss = 0.0
         total_entropy = 0.0
+        total_approx_kl = 0.0
+        total_clipfrac = 0.0
 
         minibatch_size = batch_size // cfg.num_minibatches
 
@@ -273,6 +284,9 @@ class PPOTrainer:
                     1 + cfg.clip_eps,
                 )
 
+                approx_kl = (mb_old_log_probs - log_probs).mean()
+                clipfrac = (ratio.sub(1.0).abs() > cfg.clip_eps).float().mean()
+
                 policy_loss = -torch.min(
                     ratio * mb_advantages,
                     clipped_ratio * mb_advantages,
@@ -298,6 +312,8 @@ class PPOTrainer:
                 total_policy_loss += policy_loss.item()
                 total_value_loss += value_loss.item()
                 total_entropy += entropy.item()
+                total_approx_kl += approx_kl.item()
+                total_clipfrac += clipfrac.item()
 
         n_updates = cfg.ppo_epochs * cfg.num_minibatches
         self.buffer.clear()
@@ -308,4 +324,6 @@ class PPOTrainer:
             "policy_loss": total_policy_loss / n_updates,
             "value_loss": total_value_loss / n_updates,
             "entropy": total_entropy / n_updates,
+            "approx_kl": total_approx_kl / n_updates,
+            "clipfrac": total_clipfrac / n_updates,
         }
