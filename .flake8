@@ -1,5 +1,18 @@
 [flake8]
 max-line-length = 79
+exclude =
+    .git,
+    .mypy_cache,
+    .ruff_cache,
+    __pycache__,
+    external,
+    legacy,
+    mamba_ssm,
+    *.ipynb,
+    transformer_killer_colab.ipynb,
+    ot_memory_agent,
+    transformer_killer_core,
+    unified_trans_infinity
 extend-exclude =
     .git,
     .mypy_cache,
@@ -8,6 +21,7 @@ extend-exclude =
     external,
     legacy,
     mamba_ssm,
+    *.ipynb,
     transformer_killer_colab.ipynb,
     ot_memory_agent,
     transformer_killer_core,

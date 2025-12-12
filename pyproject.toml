@@ -5,6 +5,7 @@ exclude = [
   "external",
   "legacy",
   "mamba_ssm",
+  "transformer_killer_colab.ipynb",
   "transformer_killer_core",
   "unified_trans_infinity",
   "ot_memory_agent",
