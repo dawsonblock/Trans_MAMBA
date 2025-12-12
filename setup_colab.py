@@ -2,14 +2,13 @@
 """
 setup_colab.py
 
-Unified build and installation script for Transformer Killer Core + Mamba SSM.
+Unified build and installation script for Trans-MAMBA core + Mamba SSM.
 
 This script handles:
     1. System checks (GPU, CUDA version)
     2. PyTorch installation
     3. Mamba SSM installation (with causal-conv1d)
-    4. Transformer Killer Core setup
-    5. Verification
+    4. trans_mamba_core verification
 
 Usage (Google Colab):
     !python setup_colab.py --install-all
@@ -35,7 +34,12 @@ def run_cmd(cmd, check=True, capture=False):
     """Run shell command."""
     print(f">>> {cmd}")
     if capture:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
         return result.stdout.strip(), result.returncode
     else:
         result = subprocess.run(cmd, shell=True)
@@ -47,28 +51,31 @@ def run_cmd(cmd, check=True, capture=False):
 
 def check_system():
     """Check system requirements."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("SYSTEM CHECK")
-    print("="*60)
-    
+    print("=" * 60)
+
     issues = []
-    
+
     # Check OS
     import platform
     os_name = platform.system()
     print(f"OS: {os_name}")
     if os_name != "Linux":
         issues.append(f"Mamba CUDA requires Linux, got {os_name}")
-    
+
     # Check Python
     py_version = sys.version_info
     print(f"Python: {py_version.major}.{py_version.minor}.{py_version.micro}")
     if py_version < (3, 8):
         issues.append("Python 3.8+ required")
-    
+
     # Check CUDA
     cuda_version = None
-    nvcc_out, rc = run_cmd("nvcc --version 2>/dev/null | grep release", capture=True)
+    nvcc_out, rc = run_cmd(
+        "nvcc --version 2>/dev/null | grep release",
+        capture=True,
+    )
     if rc == 0 and nvcc_out:
         import re
         match = re.search(r"release (\d+\.\d+)", nvcc_out)
@@ -81,16 +88,19 @@ def check_system():
     else:
         print("CUDA: Not found (nvcc)")
         issues.append("CUDA not found - Mamba CUDA kernels won't compile")
-    
+
     # Check GPU
-    gpu_out, rc = run_cmd("nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null", capture=True)
+    gpu_out, rc = run_cmd(
+        "nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null",
+        capture=True,
+    )
     if rc == 0 and gpu_out:
         gpus = gpu_out.strip().split('\n')
         print(f"GPU(s): {', '.join(gpus)}")
     else:
         print("GPU: Not detected")
         issues.append("No NVIDIA GPU detected")
-    
+
     # Check PyTorch
     try:
         import torch
@@ -102,9 +112,9 @@ def check_system():
     except ImportError:
         print("PyTorch: Not installed")
         issues.append("PyTorch not installed")
-    
+
     # Summary
-    print("\n" + "-"*60)
+    print("\n" + "-" * 60)
     if issues:
         print("ISSUES FOUND:")
         for issue in issues:
@@ -117,10 +127,10 @@ def check_system():
 
 def install_pytorch():
     """Install PyTorch with CUDA support."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("INSTALLING PYTORCH")
-    print("="*60)
-    
+    print("=" * 60)
+
     # Check if already installed
     try:
         import torch
@@ -148,18 +158,19 @@ def install_pytorch():
 
 def install_mamba_ssm(from_source=False):
     """Install Mamba SSM package."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("INSTALLING MAMBA SSM")
-    print("="*60)
-    
+    print("=" * 60)
+
     # Check if already installed
     try:
         from mamba_ssm import Mamba2
+        _ = Mamba2
         print("Mamba SSM already installed")
         return True
     except ImportError:
         pass
-    
+
     if from_source:
         # Install from local source
         mamba_dir = Path(__file__).parent / "external" / "mamba_ssm"
@@ -179,51 +190,50 @@ def install_mamba_ssm(from_source=False):
     
     print("Installing mamba-ssm...")
     # Try with --no-build-isolation first (helps with PyTorch version issues)
-    success = run_cmd("pip install mamba-ssm --no-build-isolation --quiet", check=False)
-    
+    success = run_cmd(
+        "pip install mamba-ssm --no-build-isolation --quiet",
+        check=False,
+    )
+
     if not success:
         print("Retrying without --no-build-isolation...")
         success = run_cmd("pip install mamba-ssm --quiet", check=False)
-    
+
     # Verify
     try:
         import importlib
         importlib.invalidate_caches()
         from mamba_ssm import Mamba2
+        _ = Mamba2
         print("Mamba SSM installed successfully")
         return True
     except ImportError as e:
         print(f"Mamba SSM installation failed: {e}")
-        print("\nNOTE: The GRU fallback in Transformer Killer Core will still work.")
+        print("\nNOTE: trans_mamba_core will still work without Mamba2 CUDA.")
         return False
 
 
 def install_dependencies():
     """Install other dependencies."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("INSTALLING DEPENDENCIES")
-    print("="*60)
-    
+    print("=" * 60)
+
     deps = ["numpy", "tqdm", "einops"]
     for dep in deps:
         run_cmd(f"pip install {dep} --quiet", check=False)
-    
-    # Install from requirements.txt if exists
-    req_file = Path(__file__).parent / "transformer_killer_core" / "requirements.txt"
-    if req_file.exists():
-        run_cmd(f"pip install -r {req_file} --quiet", check=False)
-    
+
     return True
 
 
 def verify_installation():
     """Verify full installation."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("VERIFICATION")
-    print("="*60)
-    
+    print("=" * 60)
+
     all_passed = True
-    
+
     # Test 1: PyTorch + CUDA
     print("\n1. PyTorch + CUDA...")
     try:
@@ -237,12 +247,13 @@ def verify_installation():
     except Exception as e:
         print(f"   FAILED: {e}")
         all_passed = False
-    
+
     # Test 2: Mamba SSM
     print("\n2. Mamba SSM...")
     mamba_available = False
     try:
         from mamba_ssm import Mamba2
+        _ = Mamba2
         import torch
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model = Mamba2(d_model=64, d_state=64, d_conv=4, expand=2).to(device)
@@ -256,110 +267,124 @@ def verify_installation():
     except Exception as e:
         print(f"   WARNING: Mamba SSM error: {e}")
         print("   INFO: GRU fallback will be used")
-    
-    # Test 3: Transformer Killer Core
-    print("\n3. Transformer Killer Core...")
+
+    # Test 3: trans_mamba_core
+    print("\n3. trans_mamba_core...")
     try:
-        from transformer_killer_core.memory_core import DualTierMiras, DualTierMirasConfig
-        from transformer_killer_core.controllers import build_controller, ControllerConfig
-        from transformer_killer_core.ot_memory_agent import OTMemoryAgent, OTMemoryAgentConfig
-        
         import torch
+
+        from trans_mamba_core.controllers import (
+            MambaConfig,
+            MambaController,
+            MambaDualMemConfig,
+            MambaDualMemController,
+            TransformerConfig,
+            TransformerController,
+        )
+        from trans_mamba_core.memory import DualTierMiras, DualTierMirasConfig
+        from trans_mamba_core.rl import OTAgentConfig, OTMemoryAgent
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        
+
         # Test DualTierMiras
         cfg = DualTierMirasConfig(d_model=64, mem_slots=16)
         mem = DualTierMiras(cfg)
         query = torch.randn(2, 64)
         out = mem.read(query)
         assert "v" in out
-        
+
         # Test controllers
-        for ctrl_type in ["transformer", "mamba", "mamba_dualmem"]:
-            cfg = ControllerConfig(
-                controller_type=ctrl_type, vocab_size=16,
-                d_model=32, n_layers=1, n_heads=2, max_seq_len=32
-            )
-            model = build_controller(cfg).to(device)
-            x = torch.randint(0, 16, (2, 10)).to(device)
-            logits = model(x)
-            assert logits.shape == (2, 10, 16)
-        
-        # Test OTMemoryAgent
-        agent_cfg = OTMemoryAgentConfig(vocab_size=16, d_model=32, n_layers=1)
-        agent = OTMemoryAgent(agent_cfg).to(device)
-        logits = agent(x)
+        x = torch.randint(0, 16, (2, 10)).to(device)
+        t_cfg = TransformerConfig(
+            vocab_size=16,
+            d_model=32,
+            n_layers=1,
+            n_heads=2,
+            max_seq_len=32,
+        )
+        logits = TransformerController(t_cfg).to(device)(x)
         assert logits.shape == (2, 10, 16)
-        
+
+        m_cfg = MambaConfig(vocab_size=16, d_model=32, n_layers=1)
+        logits, _state = MambaController(m_cfg).to(device)(x)
+        assert logits.shape == (2, 10, 16)
+
+        md_cfg = MambaDualMemConfig(
+            vocab_size=16,
+            d_model=32,
+            n_layers=1,
+            mem_slots=16,
+        )
+        logits, _m_state, _aux = MambaDualMemController(md_cfg).to(device)(x)
+        assert logits.shape == (2, 10, 16)
+
+        # Test OTMemoryAgent
+        ot_cfg = OTAgentConfig(obs_dim=6, act_dim=4, d_model=32, n_layers=1)
+        agent = OTMemoryAgent(ot_cfg).to(device)
+        obs = torch.randn(2, 6).to(device)
+        logits, values, _s = agent(obs)
+        assert logits.shape == (2, 4)
+        assert values.shape == (2, 1)
+
         print("   PASSED: All components working")
     except Exception as e:
         print(f"   FAILED: {e}")
         all_passed = False
-    
-    # Test 4: Unified benchmark
-    print("\n4. Unified Benchmark CLI...")
-    try:
-        result = subprocess.run(
-            [sys.executable, "-m", "transformer_killer_core.unified_bench", "--sanity_check"],
-            capture_output=True, text=True, timeout=120
-        )
-        if "ALL SANITY CHECKS PASSED" in result.stdout:
-            print("   PASSED: Sanity checks passed")
-        else:
-            print("   WARNING: Some sanity checks may have failed")
-            print(result.stdout[-500:] if len(result.stdout) > 500 else result.stdout)
-    except Exception as e:
-        print(f"   WARNING: {e}")
-    
+
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("SUMMARY")
-    print("="*60)
-    print(f"Mamba2 CUDA: {'AVAILABLE' if mamba_available else 'NOT AVAILABLE (using GRU fallback)'}")
-    print(f"Overall: {'ALL TESTS PASSED' if all_passed else 'SOME TESTS FAILED'}")
-    
+    print("=" * 60)
+    print(
+        f"Mamba2 CUDA: {'AVAILABLE' if mamba_available else 'NOT AVAILABLE'}"
+    )
+    print(
+        f"Overall: {'ALL TESTS PASSED' if all_passed else 'SOME TESTS FAILED'}"
+    )
+
     if all_passed:
         print("\nYou can now run benchmarks:")
-        print("  python -m transformer_killer_core.unified_bench --mode synthetic --task copy_memory --controller mamba_dualmem --device cuda")
-    
+        print(
+            "  python -m trans_mamba_core.unified_runner --mode lm "
+            "--task copy_memory --controller mamba_dualmem"
+        )
+
     return all_passed
 
 
 def print_usage():
     """Print quick usage guide."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("QUICK START")
-    print("="*60)
+    print("=" * 60)
     print("""
 # Run sanity check
-python -m transformer_killer_core.unified_bench --sanity_check
+python -m trans_mamba_core.unified_runner --mode lm --task copy_memory \
+    --controller mamba_dualmem --epochs 1
 
 # Synthetic benchmark (copy memory)
-python -m transformer_killer_core.unified_bench \\
-    --mode synthetic --task copy_memory \\
+python -m trans_mamba_core.unified_runner \\
+    --mode lm --task copy_memory \\
     --controller mamba_dualmem \\
-    --seq_len 100 --delay 40 --epochs 20 \\
-    --device cuda
+    --seq_len 100 --delay 40 --epochs 20
 
 # Language model benchmark
-python -m transformer_killer_core.unified_bench \\
-    --mode lm --controller mamba_dualmem \\
-    --data_path /content/corpus.txt \\
-    --seq_len 256 --epochs 10 \\
-    --device cuda
+python -m trans_mamba_core.unified_runner \\
+    --mode lm --task copy_memory \\
+    --controller mamba_dualmem \\
+    --seq_len 256 --epochs 10
 
 # Compare all controllers
-for ctrl in transformer mamba mamba_dualmem ot_agent; do
-    python -m transformer_killer_core.unified_bench \\
-        --mode synthetic --task copy_memory \\
-        --controller $ctrl --epochs 20 --device cuda
+for ctrl in transformer mamba mamba_dualmem; do
+    python -m trans_mamba_core.unified_runner \\
+        --mode lm --task copy_memory \\
+        --controller $ctrl --epochs 20
 done
 """)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Unified setup script for Transformer Killer Core + Mamba SSM"
+        description="Unified setup script for trans_mamba_core + Mamba SSM"
     )
     parser.add_argument("--check", action="store_true",
                         help="System check only")
