@@ -38,7 +38,7 @@ try:
 except ImportError:
     import gym
 
-from infinity_dualtier_miras import DualTierMiras, DualTierMirasConfig
+from trans_mamba_core.memory import DualTierMiras, DualTierMirasConfig
 
 
 # -------------------------------------------------------------------
@@ -360,7 +360,9 @@ class InfinityPPOTrainer:
         np.random.seed(cfg.seed)
 
         self.device = torch.device(
-            cfg.device if torch.cuda.is_available() or cfg.device == "cpu" else "cpu"
+            cfg.device
+            if torch.cuda.is_available() or cfg.device == "cpu"
+            else "cpu"
         )
 
         self.vec_env = VecEnv(env_id, cfg.num_envs, seed=cfg.seed)
@@ -387,7 +389,9 @@ class InfinityPPOTrainer:
         )
 
     @torch.no_grad()
-    def _policy_value(self, obs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _policy_value(
+        self, obs: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         logits, values, _ = self.agent(obs)
         if logits.dim() == 3:
             logits = logits[:, -1, :]
@@ -409,8 +413,15 @@ class InfinityPPOTrainer:
         for t in reversed(range(T)):
             nonterminal = 1.0 - dones[t].float()
             next_value = last_values if t == T - 1 else values[t + 1]
-            delta = rewards[t] + self.cfg.gamma * next_value * nonterminal - values[t]
-            last_adv = delta + self.cfg.gamma * self.cfg.lam * nonterminal * last_adv
+            delta = (
+                rewards[t]
+                + self.cfg.gamma * next_value * nonterminal
+                - values[t]
+            )
+            last_adv = (
+                delta
+                + self.cfg.gamma * self.cfg.lam * nonterminal * last_adv
+            )
             adv[t] = last_adv
 
         returns = adv + values
@@ -426,7 +437,10 @@ class InfinityPPOTrainer:
         start_time = time.time()
 
         print(f"Starting PPO training on {cfg.num_envs} envs...")
-        print(f"Agent has {sum(p.numel() for p in self.agent.parameters()):,} params")
+        print(
+            f"Agent has {sum(p.numel() for p in self.agent.parameters()):,} "
+            "params"
+        )
 
         while global_step < cfg.total_steps:
             # Reset memory each rollout batch
@@ -451,7 +465,9 @@ class InfinityPPOTrainer:
                 obs_buf.append(obs.clone())
                 act_buf.append(actions.clone())
                 logp_buf.append(logp.clone())
-                rew_buf.append(torch.from_numpy(rewards_np).float().to(self.device))
+                rew_buf.append(
+                    torch.from_numpy(rewards_np).float().to(self.device)
+                )
                 val_buf.append(values.clone())
                 done_buf.append(
                     torch.from_numpy(dones_np | trunc_np).to(self.device)
@@ -517,11 +533,18 @@ class InfinityPPOTrainer:
 
                     value_loss = F.mse_loss(values, mb_returns)
 
-                    loss = policy_loss + cfg.vf_coef * value_loss - cfg.ent_coef * entropy
+                    loss = (
+                        policy_loss
+                        + cfg.vf_coef * value_loss
+                        - cfg.ent_coef * entropy
+                    )
 
                     self.optimizer.zero_grad()
                     loss.backward()
-                    nn.utils.clip_grad_norm_(self.agent.parameters(), cfg.max_grad_norm)
+                    nn.utils.clip_grad_norm_(
+                        self.agent.parameters(),
+                        cfg.max_grad_norm,
+                    )
                     self.optimizer.step()
 
             # Logging

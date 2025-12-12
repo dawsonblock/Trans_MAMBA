@@ -12,7 +12,8 @@ and trains with masked cross-entropy on synthetic sequences.
 
 Usage examples:
 
-    python infinity_synthetic_bench.py --task copy_memory --seq_len 128 --delay 40
+    python infinity_synthetic_bench.py --task copy_memory --seq_len 128 \
+        --delay 40
     python infinity_synthetic_bench.py --task assoc_recall --seq_len 64
 
 """
@@ -30,9 +31,9 @@ import torch.nn.functional as F
 # Import Infinity backbone
 from infinity_bench import InfinityMambaWithMiras
 
-# Import synthetic tasks from transformer_killer_core
+# Import synthetic tasks from trans_mamba_core
 try:
-    from transformer_killer_core.synthetic_tasks import (
+    from trans_mamba_core.synthetic import (
         CopyMemoryDataset,
         AssocRecallDataset,
         SelectiveCopyDataset,
@@ -41,7 +42,7 @@ try:
     HAS_SYNTHETIC_TASKS = True
 except ImportError:
     HAS_SYNTHETIC_TASKS = False
-    print("Warning: transformer_killer_core.synthetic_tasks not found.")
+    print("Warning: trans_mamba_core.synthetic not found.")
     print("Using built-in synthetic tasks.")
 
 
@@ -237,7 +238,9 @@ def make_dataset(cfg, split: str = "train"):
         raise ValueError(f"Unknown task: {cfg.task}")
 
 
-def collate_batch(batch: List[Any]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def collate_batch(
+    batch: List[Any],
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Convert batch to (x, y, loss_mask) tensors.
     Handles both dict and tuple formats.
@@ -256,9 +259,18 @@ def collate_batch(batch: List[Any]) -> Tuple[torch.Tensor, torch.Tensor, torch.T
         y_key = get_key(sample, ["tgt", "target_ids", "y", "labels", "target"])
         m_key = get_key(sample, ["mask", "loss_mask", "loss_mask_tokens"])
 
-        x = torch.stack([torch.as_tensor(b[x_key]) for b in batch], dim=0).long()
-        y = torch.stack([torch.as_tensor(b[y_key]) for b in batch], dim=0).long()
-        loss_mask = torch.stack([torch.as_tensor(b[m_key]) for b in batch], dim=0)
+        x = torch.stack(
+            [torch.as_tensor(b[x_key]) for b in batch],
+            dim=0,
+        ).long()
+        y = torch.stack(
+            [torch.as_tensor(b[y_key]) for b in batch],
+            dim=0,
+        ).long()
+        loss_mask = torch.stack(
+            [torch.as_tensor(b[m_key]) for b in batch],
+            dim=0,
+        )
         return x, y, loss_mask.float()
 
     # Case 2: tuple
@@ -366,7 +378,9 @@ def train_synthetic(cfg: SyntheticConfig):
     np.random.seed(cfg.seed)
 
     device = torch.device(
-        cfg.device if (cfg.device == "cpu" or torch.cuda.is_available()) else "cpu"
+        cfg.device
+        if (cfg.device == "cpu" or torch.cuda.is_available())
+        else "cpu"
     )
 
     print(f"Training on {device}")
