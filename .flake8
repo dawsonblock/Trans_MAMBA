@@ -1,0 +1,13 @@
+[flake8]
+max-line-length = 79
+extend-exclude =
+    .git,
+    .mypy_cache,
+    .ruff_cache,
+    __pycache__,
+    external,
+    mamba_ssm,
+    ot_memory_agent,
+    transformer_killer_core,
+    unified_trans_infinity
+select = E,F

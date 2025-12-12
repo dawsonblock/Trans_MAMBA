@@ -449,7 +449,7 @@ class RuntimePerformanceRule(AnomalyRule):
             return self.create_anomaly(
                 metric_name=self.metric_name,
                 message=(
-                    f"Step duration ({latest:.3f}s) is {latest/avg:.1f}x "
+                    f"Step duration ({latest:.3f}s) is {latest / avg:.1f}x "
                     f"the average ({avg:.3f}s)"
                 ),
                 metric_value=latest,
