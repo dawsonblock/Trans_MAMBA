@@ -1,0 +1,74 @@
+{
+  "enabled": true,
+  "history_size": 1000,
+  "check_interval": 1,
+  "log_file": "anomaly_log.jsonl",
+  "halt_on_critical": true,
+  "verbose": false,
+
+  "rules": {
+    "nan_inf": {
+      "enabled": true,
+      "severity": "CRITICAL"
+    },
+    "gradient_explosion": {
+      "enabled": true,
+      "max_grad_norm": 1.0,
+      "explosion_factor": 5.0,
+      "severity": "ERROR"
+    },
+    "advantage_collapse": {
+      "enabled": true,
+      "min_std": 1e-5,
+      "window_size": 10,
+      "severity": "WARNING"
+    },
+    "policy_collapse": {
+      "enabled": true,
+      "threshold": 0.99,
+      "window_size": 10,
+      "severity": "WARNING"
+    },
+    "memory_saturation": {
+      "enabled": true,
+      "high_threshold": 0.95,
+      "low_threshold": 0.05,
+      "window_size": 20,
+      "severity": "WARNING"
+    },
+    "runtime_performance": {
+      "enabled": true,
+      "multiplier": 3.0,
+      "min_samples": 10,
+      "severity": "INFO"
+    },
+    "loss_explosion": {
+      "enabled": true,
+      "max_value": 100.0,
+      "severity": "ERROR"
+    },
+    "loss_spike": {
+      "enabled": true,
+      "z_threshold": 5.0,
+      "min_samples": 20,
+      "severity": "WARNING"
+    }
+  },
+
+  "mitigations": {
+    "INFO": ["log_only"],
+    "WARNING": ["log_only"],
+    "ERROR": ["log_only", "gradient_clip"],
+    "CRITICAL": ["log_only", "abort_training"]
+  },
+
+  "mitigation_params": {
+    "gradient_clip": {
+      "clip_value": 0.1
+    },
+    "reduce_lr": {
+      "factor": 0.5,
+      "min_lr": 1e-6
+    }
+  }
+}
