@@ -189,16 +189,21 @@ class MambaDualMemController(nn.Module):
         else:
             h = x
 
-        for block in self.blocks:
-            h_res, _ = block(h)
+        mamba_states = state.mamba_states
+        new_mamba_states = []
+
+        for i, block in enumerate(self.blocks):
+            block_state = mamba_states[i] if mamba_states else None
+            h_res, new_state_i = block(h, block_state)
             h = h + h_res
+            new_mamba_states.append(new_state_i)
 
         mem_state = state.memory_state
         outputs = []
 
         for t in range(T):
             h_t = h[:, t, :]
-            mem_out, mem_state, _ = self.memory(
+            mem_out, mem_state, _aux = self.memory(
                 query=h_t,
                 write_value=h_t,
                 state=mem_state,
@@ -206,7 +211,14 @@ class MambaDualMemController(nn.Module):
             gate_in = torch.cat([h_t, mem_out], dim=-1)
             gate = torch.sigmoid(self.mem_gate(gate_in))
             fused = gate * h_t + (1 - gate) * mem_out
-            outputs.append(self.mem_ln(fused).unsqueeze(1))
+            fused = self.mem_ln(fused)
+            outputs.append(fused.unsqueeze(1))
 
         h = torch.cat(outputs, dim=1)
-        return self.ln_f(h), state
+        h = self.ln_f(h)
+
+        new_state = MambaDualMemState(
+            mamba_states=new_mamba_states,
+            memory_state=mem_state,
+        )
+        return h, new_state
