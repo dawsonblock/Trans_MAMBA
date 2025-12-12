@@ -1,19 +1,14 @@
 """Tests for controller modules."""
 
-import os
-import sys
-
 import torch
-
-sys.path.insert(
-    0,
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-)
 
 
 def test_transformer_controller():
     """Test Transformer controller."""
-    from controllers import TransformerController, TransformerConfig
+    from trans_mamba_core.controllers import (
+        TransformerController,
+        TransformerConfig,
+    )
 
     cfg = TransformerConfig(vocab_size=16, d_model=64, n_layers=2, n_heads=4)
     model = TransformerController(cfg)
@@ -27,7 +22,7 @@ def test_transformer_controller():
 
 def test_mamba_controller():
     """Test Mamba controller."""
-    from controllers import MambaController, MambaConfig
+    from trans_mamba_core.controllers import MambaController, MambaConfig
 
     cfg = MambaConfig(vocab_size=16, d_model=64, n_layers=2)
     model = MambaController(cfg)
@@ -42,7 +37,10 @@ def test_mamba_controller():
 
 def test_mamba_dualmem_controller():
     """Test MambaDualMem controller."""
-    from controllers import MambaDualMemController, MambaDualMemConfig
+    from trans_mamba_core.controllers import (
+        MambaDualMemController,
+        MambaDualMemConfig,
+    )
 
     cfg = MambaDualMemConfig(
         vocab_size=16, d_model=64, n_layers=2, mem_slots=32
@@ -59,7 +57,10 @@ def test_mamba_dualmem_controller():
 
 def test_streaming_ssm_controller():
     """Test StreamingSSM controller."""
-    from controllers import StreamingSSMController, StreamingSSMConfig
+    from trans_mamba_core.controllers import (
+        StreamingSSMController,
+        StreamingSSMConfig,
+    )
 
     cfg = StreamingSSMConfig(input_dim=4, d_model=32, n_layers=2)
     model = StreamingSSMController(cfg)
@@ -74,7 +75,10 @@ def test_streaming_ssm_controller():
 
 def test_streaming_ssm_sequence():
     """Test StreamingSSM sequence processing."""
-    from controllers import StreamingSSMController, StreamingSSMConfig
+    from trans_mamba_core.controllers import (
+        StreamingSSMController,
+        StreamingSSMConfig,
+    )
 
     cfg = StreamingSSMConfig(input_dim=4, d_model=32, n_layers=2)
     model = StreamingSSMController(cfg)

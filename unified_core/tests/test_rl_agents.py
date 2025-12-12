@@ -1,19 +1,10 @@
 """Tests for RL agents."""
-
-import os
-import sys
-
 import torch
-
-sys.path.insert(
-    0,
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-)
 
 
 def test_infinity_agent_init():
     """Test Infinity agent initialization."""
-    from rl import InfinityAgent, InfinityAgentConfig
+    from trans_mamba_core.rl import InfinityAgent, InfinityAgentConfig
 
     cfg = InfinityAgentConfig(obs_dim=4, act_dim=2, d_model=32, n_layers=2)
     agent = InfinityAgent(cfg)
@@ -23,7 +14,7 @@ def test_infinity_agent_init():
 
 def test_infinity_agent_forward():
     """Test Infinity agent forward pass."""
-    from rl import InfinityAgent, InfinityAgentConfig
+    from trans_mamba_core.rl import InfinityAgent, InfinityAgentConfig
 
     cfg = InfinityAgentConfig(obs_dim=4, act_dim=2, d_model=32, n_layers=2)
     agent = InfinityAgent(cfg)
@@ -39,7 +30,7 @@ def test_infinity_agent_forward():
 
 def test_infinity_agent_sequence():
     """Test Infinity agent sequence forward."""
-    from rl import InfinityAgent, InfinityAgentConfig
+    from trans_mamba_core.rl import InfinityAgent, InfinityAgentConfig
 
     cfg = InfinityAgentConfig(obs_dim=4, act_dim=2, d_model=32, n_layers=2)
     agent = InfinityAgent(cfg)
@@ -54,7 +45,7 @@ def test_infinity_agent_sequence():
 
 def test_ot_agent_init():
     """Test OT agent initialization."""
-    from rl import OTAgentConfig, OTMemoryAgent
+    from trans_mamba_core.rl import OTAgentConfig, OTMemoryAgent
 
     cfg = OTAgentConfig(obs_dim=6, act_dim=4, d_model=32, n_layers=2)
     agent = OTMemoryAgent(cfg)
@@ -64,7 +55,7 @@ def test_ot_agent_init():
 
 def test_ot_agent_forward():
     """Test OT agent forward pass."""
-    from rl import OTAgentConfig, OTMemoryAgent
+    from trans_mamba_core.rl import OTAgentConfig, OTMemoryAgent
 
     cfg = OTAgentConfig(obs_dim=6, act_dim=4, d_model=32, n_layers=2)
     agent = OTMemoryAgent(cfg)
@@ -80,7 +71,7 @@ def test_ot_agent_forward():
 
 def test_ot_agent_get_action():
     """Test OT agent action selection."""
-    from rl import OTAgentConfig, OTMemoryAgent
+    from trans_mamba_core.rl import OTAgentConfig, OTMemoryAgent
 
     cfg = OTAgentConfig(obs_dim=6, act_dim=4, d_model=32, n_layers=2)
     agent = OTMemoryAgent(cfg)

@@ -8,16 +8,13 @@ Tests:
 - Mitigation handlers
 """
 
-import sys
 import torch
 import torch.nn as nn
-
-sys.path.insert(0, ".")
 
 
 def test_metric_registry():
     """Test metric registration and history."""
-    from monitoring.anomaly_detector import MetricRegistry
+    from trans_mamba_core.monitoring.anomaly_detector import MetricRegistry
 
     registry = MetricRegistry(history_size=100)
 
@@ -38,7 +35,7 @@ def test_metric_registry():
 
 def test_tensor_stats():
     """Test tensor statistics computation."""
-    from monitoring.anomaly_detector import MetricRegistry
+    from trans_mamba_core.monitoring.anomaly_detector import MetricRegistry
 
     registry = MetricRegistry()
 
@@ -61,8 +58,11 @@ def test_tensor_stats():
 
 def test_nan_inf_rule():
     """Test NaN/Inf detection rule."""
-    from monitoring.anomaly_detector import MetricRegistry, Severity
-    from monitoring.rules import NaNInfRule
+    from trans_mamba_core.monitoring.anomaly_detector import (
+        MetricRegistry,
+        Severity,
+    )
+    from trans_mamba_core.monitoring.rules import NaNInfRule
 
     registry = MetricRegistry()
     rule = NaNInfRule()
@@ -82,8 +82,11 @@ def test_nan_inf_rule():
 
 def test_gradient_explosion_rule():
     """Test gradient explosion detection."""
-    from monitoring.anomaly_detector import MetricRegistry, Severity
-    from monitoring.rules import GradientExplosionRule
+    from trans_mamba_core.monitoring.anomaly_detector import (
+        MetricRegistry,
+        Severity,
+    )
+    from trans_mamba_core.monitoring.rules import GradientExplosionRule
 
     registry = MetricRegistry()
     rule = GradientExplosionRule(max_grad_norm=1.0, explosion_factor=5.0)
@@ -102,8 +105,11 @@ def test_gradient_explosion_rule():
 
 def test_advantage_collapse_rule():
     """Test advantage collapse detection."""
-    from monitoring.anomaly_detector import MetricRegistry, Severity
-    from monitoring.rules import AdvantageCollapseRule
+    from trans_mamba_core.monitoring.anomaly_detector import (
+        MetricRegistry,
+        Severity,
+    )
+    from trans_mamba_core.monitoring.rules import AdvantageCollapseRule
 
     registry = MetricRegistry()
     rule = AdvantageCollapseRule(min_std=1e-5, window_size=5)
@@ -129,8 +135,11 @@ def test_advantage_collapse_rule():
 
 def test_policy_collapse_rule():
     """Test policy collapse detection."""
-    from monitoring.anomaly_detector import MetricRegistry, Severity
-    from monitoring.rules import PolicyCollapseRule
+    from trans_mamba_core.monitoring.anomaly_detector import (
+        MetricRegistry,
+        Severity,
+    )
+    from trans_mamba_core.monitoring.rules import PolicyCollapseRule
 
     registry = MetricRegistry()
     rule = PolicyCollapseRule(threshold=0.99, window_size=5)
@@ -147,8 +156,8 @@ def test_policy_collapse_rule():
 
 def test_statistical_rule():
     """Test statistical deviation rule."""
-    from monitoring.anomaly_detector import MetricRegistry
-    from monitoring.rules import StatisticalRule
+    from trans_mamba_core.monitoring.anomaly_detector import MetricRegistry
+    from trans_mamba_core.monitoring.rules import StatisticalRule
 
     registry = MetricRegistry()
     rule = StatisticalRule(
@@ -173,12 +182,12 @@ def test_statistical_rule():
 
 def test_anomaly_detector_full():
     """Test full anomaly detector with rules and handlers."""
-    from monitoring.anomaly_detector import (
+    from trans_mamba_core.monitoring.anomaly_detector import (
         AnomalyDetector,
         AnomalyDetectorConfig,
         Severity,
     )
-    from monitoring.rules import get_default_rules
+    from trans_mamba_core.monitoring.rules import get_default_rules
 
     cfg = AnomalyDetectorConfig(enabled=True, verbose=False)
     detector = AnomalyDetector(cfg)
@@ -209,7 +218,9 @@ def test_anomaly_detector_full():
 
 def test_check_tensor_health():
     """Test quick tensor health check utility."""
-    from monitoring.anomaly_detector import check_tensor_health
+    from trans_mamba_core.monitoring.anomaly_detector import (
+        check_tensor_health,
+    )
 
     t_good = torch.randn(10, 10)
     anomaly = check_tensor_health(t_good, "test_tensor")
@@ -230,8 +241,8 @@ def test_check_tensor_health():
 
 def test_mitigation_handlers():
     """Test mitigation handler execution."""
-    from monitoring.anomaly_detector import Anomaly, Severity
-    from monitoring.mitigations import (
+    from trans_mamba_core.monitoring.anomaly_detector import Anomaly, Severity
+    from trans_mamba_core.monitoring.mitigations import (
         LogOnlyHandler,
         SkipUpdateHandler,
         GradientClipHandler,

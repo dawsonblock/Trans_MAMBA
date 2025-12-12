@@ -1,19 +1,10 @@
 """Tests for synthetic tasks."""
-
-import os
-import sys
-
 import torch
-
-sys.path.insert(
-    0,
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-)
 
 
 def test_copy_memory_dataset():
     """Test CopyMemory dataset."""
-    from synthetic import CopyMemoryDataset
+    from trans_mamba_core.synthetic import CopyMemoryDataset
 
     ds = CopyMemoryDataset(
         seq_len=64,
@@ -36,7 +27,7 @@ def test_copy_memory_dataset():
 
 def test_assoc_recall_dataset():
     """Test AssocRecall dataset."""
-    from synthetic import AssocRecallDataset
+    from trans_mamba_core.synthetic import AssocRecallDataset
 
     ds = AssocRecallDataset(
         seq_len=64,
@@ -58,7 +49,7 @@ def test_assoc_recall_dataset():
 
 def test_selective_copy_dataset():
     """Test SelectiveCopy dataset."""
-    from synthetic import SelectiveCopyDataset
+    from trans_mamba_core.synthetic import SelectiveCopyDataset
 
     ds = SelectiveCopyDataset(
         seq_len=64,
@@ -80,7 +71,7 @@ def test_selective_copy_dataset():
 
 def test_induction_head_dataset():
     """Test InductionHead dataset."""
-    from synthetic import InductionHeadDataset
+    from trans_mamba_core.synthetic import InductionHeadDataset
 
     ds = InductionHeadDataset(
         seq_len=64,
@@ -102,7 +93,7 @@ def test_induction_head_dataset():
 
 def test_get_dataset_factory():
     """Test dataset factory function."""
-    from synthetic import SyntheticTaskConfig, get_dataset
+    from trans_mamba_core.synthetic import SyntheticTaskConfig, get_dataset
 
     cfg = SyntheticTaskConfig(
         seq_len=64, vocab_size=16, num_samples=100, delay=16

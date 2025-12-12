@@ -1,19 +1,10 @@
 """Tests for memory modules."""
-
-import os
-import sys
-
 import torch
-
-sys.path.insert(
-    0,
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-)
 
 
 def test_dualtier_miras_init():
     """Test DualTierMiras initialization."""
-    from memory import DualTierMiras, DualTierMirasConfig
+    from trans_mamba_core.memory import DualTierMiras, DualTierMirasConfig
 
     cfg = DualTierMirasConfig(d_model=64, mem_slots=32, n_heads=4)
     mem = DualTierMiras(cfg)
@@ -23,7 +14,11 @@ def test_dualtier_miras_init():
 
 def test_dualtier_miras_init_state():
     """Test memory state initialization."""
-    from memory import DualTierMiras, DualTierMirasConfig, MemoryState
+    from trans_mamba_core.memory import (
+        DualTierMiras,
+        DualTierMirasConfig,
+        MemoryState,
+    )
 
     cfg = DualTierMirasConfig(d_model=64, mem_slots=32, n_heads=4)
     mem = DualTierMiras(cfg)
@@ -43,7 +38,11 @@ def test_dualtier_miras_init_state():
 
 def test_dualtier_miras_forward():
     """Test forward pass (read + write)."""
-    from memory import DualTierMiras, DualTierMirasConfig, MemoryState
+    from trans_mamba_core.memory import (
+        DualTierMiras,
+        DualTierMirasConfig,
+        MemoryState,
+    )
 
     cfg = DualTierMirasConfig(d_model=64, mem_slots=32, n_heads=4)
     mem = DualTierMiras(cfg)
@@ -61,7 +60,7 @@ def test_dualtier_miras_forward():
 
 def test_dualtier_miras_read_only():
     """Test read-only forward pass."""
-    from memory import DualTierMiras, DualTierMirasConfig
+    from trans_mamba_core.memory import DualTierMiras, DualTierMirasConfig
 
     cfg = DualTierMirasConfig(d_model=64, mem_slots=32, n_heads=4)
     mem = DualTierMiras(cfg)
@@ -77,7 +76,7 @@ def test_dualtier_miras_read_only():
 
 def test_surprise_gating():
     """Test surprise-gated deep tier writes."""
-    from memory import DualTierMiras, DualTierMirasConfig
+    from trans_mamba_core.memory import DualTierMiras, DualTierMirasConfig
 
     cfg = DualTierMirasConfig(
         d_model=64, mem_slots=32, n_heads=4,
