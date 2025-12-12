@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Unified Setup Script for Transformer Killer Core + Mamba SSM
+# Unified Setup Script for trans_mamba_core + Mamba SSM
 # ============================================================
 #
 # Usage:
@@ -109,11 +109,6 @@ install_deps() {
     echo "Installing other dependencies..."
     pip install numpy tqdm einops --quiet
     
-    # Install from requirements.txt
-    if [[ -f "transformer_killer_core/requirements.txt" ]]; then
-        pip install -r transformer_killer_core/requirements.txt --quiet
-    fi
-    
     print_success "Dependencies installed"
 }
 
@@ -174,7 +169,8 @@ verify() {
     
     echo ""
     echo "Running sanity checks..."
-    python3 -m transformer_killer_core.unified_bench --sanity_check
+    python3 -m trans_mamba_core.unified_runner --mode lm --task copy_memory \
+        --controller mamba_dualmem --epochs 1
 }
 
 # ============================================================
@@ -186,27 +182,26 @@ print_usage() {
     cat << 'EOF'
 
 # Run sanity check
-python3 -m transformer_killer_core.unified_bench --sanity_check
+python3 -m trans_mamba_core.unified_runner --mode lm --task copy_memory \
+    --controller mamba_dualmem --epochs 1
 
 # Synthetic benchmark (copy memory)
-python3 -m transformer_killer_core.unified_bench \
-    --mode synthetic --task copy_memory \
+python3 -m trans_mamba_core.unified_runner \
+    --mode lm --task copy_memory \
     --controller mamba_dualmem \
-    --seq_len 100 --delay 40 --epochs 20 \
-    --device cuda
+    --seq_len 100 --delay 40 --epochs 20
 
 # Language model benchmark
-python3 -m transformer_killer_core.unified_bench \
-    --mode lm --controller mamba_dualmem \
-    --data_path /path/to/corpus.txt \
-    --seq_len 256 --epochs 10 \
-    --device cuda
+python3 -m trans_mamba_core.unified_runner \
+    --mode lm --task copy_memory \
+    --controller mamba_dualmem \
+    --seq_len 256 --epochs 10
 
 # Compare all controllers
-for ctrl in transformer mamba mamba_dualmem ot_agent; do
-    python3 -m transformer_killer_core.unified_bench \
-        --mode synthetic --task copy_memory \
-        --controller $ctrl --epochs 20 --device cuda
+for ctrl in transformer mamba mamba_dualmem; do
+    python3 -m trans_mamba_core.unified_runner \
+        --mode lm --task copy_memory \
+        --controller $ctrl --epochs 20
 done
 
 EOF
