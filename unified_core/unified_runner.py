@@ -7,7 +7,8 @@ Supports:
 - RL mode: Reinforcement learning (cartpole, delayed_cue)
 
 Examples:
-    python unified_runner.py --mode lm --task copy_memory --controller mamba_dualmem
+    python unified_runner.py --mode lm --task copy_memory \
+        --controller mamba_dualmem
     python unified_runner.py --mode rl --agent infinity --env cartpole
     python unified_runner.py --mode rl --agent ot --env delayed_cue
 """
@@ -306,7 +307,12 @@ def main():
     lm_group = parser.add_argument_group("LM Mode")
     lm_group.add_argument(
         "--task", type=str, default="copy_memory",
-        choices=["copy_memory", "assoc_recall", "selective_copy", "induction_head"]
+        choices=[
+            "copy_memory",
+            "assoc_recall",
+            "selective_copy",
+            "induction_head",
+        ]
     )
     lm_group.add_argument(
         "--controller", type=str, default="transformer",

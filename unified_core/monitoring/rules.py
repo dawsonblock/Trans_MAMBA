@@ -8,17 +8,10 @@ Provides:
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
-from collections import deque
+from typing import Any, Dict, List, Optional
 import math
 
-from .anomaly_detector import (
-    Anomaly,
-    Severity,
-    MetricRegistry,
-    Metric,
-)
+from .anomaly_detector import Anomaly, MetricRegistry, Severity
 
 
 class AnomalyRule(ABC):
@@ -93,7 +86,10 @@ class ThresholdRule(AnomalyRule):
         if self.min_value is not None and value < self.min_value:
             return self.create_anomaly(
                 metric_name=self.metric_name,
-                message=f"{self.metric_name} ({value:.4g}) below min ({self.min_value})",
+                message=(
+                    f"{self.metric_name} ({value:.4g}) below min "
+                    f"({self.min_value})"
+                ),
                 metric_value=value,
                 suggested_action=self.suggested_action,
             )
@@ -101,7 +97,10 @@ class ThresholdRule(AnomalyRule):
         if self.max_value is not None and value > self.max_value:
             return self.create_anomaly(
                 metric_name=self.metric_name,
-                message=f"{self.metric_name} ({value:.4g}) above max ({self.max_value})",
+                message=(
+                    f"{self.metric_name} ({value:.4g}) above max "
+                    f"({self.max_value})"
+                ),
                 metric_value=value,
                 suggested_action=self.suggested_action,
             )
@@ -359,7 +358,9 @@ class PolicyCollapseRule(AnomalyRule):
                     f"{self.threshold} for {self.window_size} steps"
                 ),
                 metric_value=avg_prob,
-                suggested_action="Reduce learning rate, increase entropy bonus",
+                suggested_action=(
+                    "Reduce learning rate, increase entropy bonus"
+                ),
             )
 
         return None

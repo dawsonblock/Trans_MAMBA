@@ -70,7 +70,8 @@ class Anomaly:
     def __str__(self) -> str:
         return (
             f"[{self.severity.name}] {self.rule_name}: "
-            f"{self.message} (metric={self.metric_name}, value={self.metric_value})"
+            f"{self.message} (metric={self.metric_name}, "
+            f"value={self.metric_value})"
         )
 
 
@@ -371,9 +372,12 @@ def check_tensor_health(
                 rule_name="TensorHealthCheck",
                 metric_name=name,
                 severity=Severity.CRITICAL,
-                message=f"Tensor '{name}' contains "
-                        f"{'NaN' if has_nan else ''}{'/' if has_nan and has_inf else ''}"
-                        f"{'Inf' if has_inf else ''}",
+                message=(
+                    f"Tensor '{name}' contains "
+                    f"{'NaN' if has_nan else ''}"
+                    f"{'/' if has_nan and has_inf else ''}"
+                    f"{'Inf' if has_inf else ''}"
+                ),
                 metric_value=float("nan"),
             )
     return None

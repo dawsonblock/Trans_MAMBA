@@ -9,12 +9,12 @@ Provides callbacks that can be attached to:
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional
 import time
 import torch
 import torch.nn as nn
 
-from .anomaly_detector import AnomalyDetector, Metric
+from .anomaly_detector import AnomalyDetector
 
 
 class MonitoringHook(ABC):

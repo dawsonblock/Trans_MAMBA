@@ -9,11 +9,10 @@ Tests:
 """
 
 import sys
-import math
-sys.path.insert(0, ".")
-
 import torch
 import torch.nn as nn
+
+sys.path.insert(0, ".")
 
 
 def test_metric_registry():
@@ -254,7 +253,7 @@ def test_mitigation_handlers():
     context = {}
     result = skip_handler.handle(anomaly, context)
     assert result.success
-    assert context.get("skip_update") == True
+    assert context.get("skip_update")
 
     model = nn.Linear(10, 10)
     x = torch.randn(1, 10)

@@ -1,15 +1,20 @@
 """Tests for memory modules."""
 
-import torch
-import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import sys
 
-from memory import DualTierMiras, DualTierMirasConfig, MemoryState
+import torch
+
+sys.path.insert(
+    0,
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+)
 
 
 def test_dualtier_miras_init():
     """Test DualTierMiras initialization."""
+    from memory import DualTierMiras, DualTierMirasConfig
+
     cfg = DualTierMirasConfig(d_model=64, mem_slots=32, n_heads=4)
     mem = DualTierMiras(cfg)
     assert mem is not None
@@ -18,6 +23,8 @@ def test_dualtier_miras_init():
 
 def test_dualtier_miras_init_state():
     """Test memory state initialization."""
+    from memory import DualTierMiras, DualTierMirasConfig, MemoryState
+
     cfg = DualTierMirasConfig(d_model=64, mem_slots=32, n_heads=4)
     mem = DualTierMiras(cfg)
 
@@ -25,12 +32,19 @@ def test_dualtier_miras_init_state():
 
     assert isinstance(state, MemoryState)
     assert state.fast_keys.shape == (2, 4, 32, 16)
-    assert state.fast_vals.shape == (2, 4, 32, 16)
+    assert state.fast_vals.shape == (
+        2,
+        cfg.n_heads,
+        cfg.mem_slots,
+        cfg.d_value // cfg.n_heads,
+    )
     print("✓ Memory state initialization")
 
 
 def test_dualtier_miras_forward():
     """Test forward pass (read + write)."""
+    from memory import DualTierMiras, DualTierMirasConfig, MemoryState
+
     cfg = DualTierMirasConfig(d_model=64, mem_slots=32, n_heads=4)
     mem = DualTierMiras(cfg)
 
@@ -47,6 +61,8 @@ def test_dualtier_miras_forward():
 
 def test_dualtier_miras_read_only():
     """Test read-only forward pass."""
+    from memory import DualTierMiras, DualTierMirasConfig
+
     cfg = DualTierMirasConfig(d_model=64, mem_slots=32, n_heads=4)
     mem = DualTierMiras(cfg)
 
@@ -61,6 +77,8 @@ def test_dualtier_miras_read_only():
 
 def test_surprise_gating():
     """Test surprise-gated deep tier writes."""
+    from memory import DualTierMiras, DualTierMirasConfig
+
     cfg = DualTierMirasConfig(
         d_model=64, mem_slots=32, n_heads=4,
         surprise_threshold=0.5, surprise_detached=True

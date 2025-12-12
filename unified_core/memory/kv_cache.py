@@ -5,7 +5,7 @@ Provides efficient key-value caching for autoregressive generation.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Tuple
 
 import torch
 import torch.nn as nn

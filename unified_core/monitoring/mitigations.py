@@ -12,7 +12,7 @@ Provides configurable actions to take when anomalies are detected:
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Any, Optional, Callable
+from typing import Any, Dict, Optional
 from enum import Enum
 import logging
 
@@ -51,7 +51,11 @@ class MitigationHandler(ABC):
         self._count = 0
 
     @abstractmethod
-    def handle(self, anomaly: Anomaly, context: Dict[str, Any]) -> MitigationResult:
+    def handle(
+        self,
+        anomaly: Anomaly,
+        context: Dict[str, Any],
+    ) -> MitigationResult:
         """
         Handle an anomaly.
 
@@ -79,7 +83,11 @@ class LogOnlyHandler(MitigationHandler):
         super().__init__(MitigationAction.LOG_ONLY)
         self.log_level = log_level
 
-    def handle(self, anomaly: Anomaly, context: Dict[str, Any]) -> MitigationResult:
+    def handle(
+        self,
+        anomaly: Anomaly,
+        context: Dict[str, Any],
+    ) -> MitigationResult:
         msg = f"[ANOMALY] {anomaly}"
         logger.log(self.log_level, msg)
 
@@ -97,7 +105,11 @@ class ResetMemoryHandler(MitigationHandler):
     def __init__(self):
         super().__init__(MitigationAction.RESET_MEMORY)
 
-    def handle(self, anomaly: Anomaly, context: Dict[str, Any]) -> MitigationResult:
+    def handle(
+        self,
+        anomaly: Anomaly,
+        context: Dict[str, Any],
+    ) -> MitigationResult:
         memory = context.get("memory")
         batch_size = context.get("batch_size", 1)
         device = context.get("device")
@@ -140,7 +152,11 @@ class ResetEnvHandler(MitigationHandler):
     def __init__(self):
         super().__init__(MitigationAction.RESET_ENV)
 
-    def handle(self, anomaly: Anomaly, context: Dict[str, Any]) -> MitigationResult:
+    def handle(
+        self,
+        anomaly: Anomaly,
+        context: Dict[str, Any],
+    ) -> MitigationResult:
         env = context.get("env")
 
         if env is None:
@@ -180,7 +196,11 @@ class SkipUpdateHandler(MitigationHandler):
     def __init__(self):
         super().__init__(MitigationAction.SKIP_UPDATE)
 
-    def handle(self, anomaly: Anomaly, context: Dict[str, Any]) -> MitigationResult:
+    def handle(
+        self,
+        anomaly: Anomaly,
+        context: Dict[str, Any],
+    ) -> MitigationResult:
         context["skip_update"] = True
 
         logger.warning(
@@ -203,7 +223,11 @@ class ReduceLRHandler(MitigationHandler):
         self.factor = factor
         self.min_lr = min_lr
 
-    def handle(self, anomaly: Anomaly, context: Dict[str, Any]) -> MitigationResult:
+    def handle(
+        self,
+        anomaly: Anomaly,
+        context: Dict[str, Any],
+    ) -> MitigationResult:
         optimizer = context.get("optimizer")
 
         if optimizer is None:
@@ -252,7 +276,11 @@ class GradientClipHandler(MitigationHandler):
         super().__init__(MitigationAction.GRADIENT_CLIP)
         self.clip_value = clip_value
 
-    def handle(self, anomaly: Anomaly, context: Dict[str, Any]) -> MitigationResult:
+    def handle(
+        self,
+        anomaly: Anomaly,
+        context: Dict[str, Any],
+    ) -> MitigationResult:
         model = context.get("model")
 
         if model is None:
@@ -299,7 +327,11 @@ class AbortTrainingHandler(MitigationHandler):
     def __init__(self):
         super().__init__(MitigationAction.ABORT_TRAINING)
 
-    def handle(self, anomaly: Anomaly, context: Dict[str, Any]) -> MitigationResult:
+    def handle(
+        self,
+        anomaly: Anomaly,
+        context: Dict[str, Any],
+    ) -> MitigationResult:
         context["abort_training"] = True
 
         logger.error(
